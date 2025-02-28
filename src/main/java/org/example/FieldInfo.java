@@ -96,7 +96,7 @@ public class FieldInfo {
         Mat blankGray = new Mat();
         Imgproc.cvtColor(blankForm, blankGray, Imgproc.COLOR_BGR2GRAY);
 
-        OCRUtil.setDebug(true);
+        OCRUtil.setDebug(debug);
         OCRUtil.debugImg("Original Filled Form", filledGray);
         OCRUtil.debugImg("Original Blank Form", blankGray);
 

@@ -18,9 +18,9 @@ public class TemplateMatchingFormComparison {
     public static void main(String[] args) {
 
         List<FieldInfo> fieldList = new ArrayList<>();
-        FieldInfo.setDebug(true);
-        FieldInfo.setBaseDir("C:/Users/ccata/OneDrive/Documents/OCR/W2 Fields/");
-        FieldInfo.setFormPaths("C:/Users/ccata/OneDrive/Documents/OCR/Blank W2.png","C:/Users/ccata/OneDrive/Documents/OCR/Skewed.png");
+//        FieldInfo.setDebug(true);
+        FieldInfo.setBaseDir("src/main/resources/forms and fields/W2 Fields/");
+        FieldInfo.setFormPaths("src/main/resources/forms and fields/Blank W2.png","src/main/resources/forms and fields/Sample W2.png");
 
         // Add field information to the list
         fieldList.add(new FieldInfo("SSN", "SSN"));
