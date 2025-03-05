@@ -80,7 +80,7 @@ public class FieldInfo {
         String templatePath = FieldInfo.baseDir + pngName + ".png";
         this.templateMat = Imgcodecs.imread(templatePath, Imgcodecs.IMREAD_GRAYSCALE);
         if(!sectionPngName.isEmpty()){
-            String sectionTemplatePath = "C:/Users/ccata/Downloads/W2 Fields/" + sectionPngName + ".png";
+            String sectionTemplatePath = baseDir + sectionPngName + ".png";
             this.sectionTemplateMat = Imgcodecs.imread(sectionTemplatePath, Imgcodecs.IMREAD_GRAYSCALE);
         }else{
             this.sectionTemplateMat = null;
@@ -125,14 +125,8 @@ public class FieldInfo {
 
         // Extract the region of interest (ROI) from the filled form
         Rect roiRect = new Rect(matchLoc1, templateMat.size());
-        Mat filledRoiMat = new Mat(filledGray, roiRect);
 
-        debugImg("filledGray",filledGray);
-        debugImg("blankGray",blankGray);
-        debugImg("templateMat",templateMat);
-        debugImg("filledRoiMat",filledRoiMat);
-
-        return filledRoiMat;
+        return new Mat(filledGray, roiRect);
     }
 
     public String extractValue(){
@@ -150,7 +144,7 @@ public class FieldInfo {
         Mat filledRoiMat = this.extractROI(filledMat, blankMat,templateMat);
 
 
-        boolean areDifferent = compareRegions(filledRoiMat, templateMat); // Implement compareRegions
+        boolean areDifferent = compareRegions(filledRoiMat, templateMat);
         if(isCheckBox){
             if(areDifferent){
                 logger.debug("Field is checked!");
@@ -162,9 +156,7 @@ public class FieldInfo {
         }else if (areDifferent) {
             logger.debug("Field has been filled.");
             try {
-                String blankText = OCRUtil.extractTextFromMat(templateMat);
                 String filledText = OCRUtil.extractTextFromDifference(filledRoiMat, templateMat);
-                logger.debug("Blank text: {}", blankText); // Use placeholders {} for variables
                 logger.debug("Filled text: {}\n", filledText);
                 this.setFieldValue(filledText);
             } catch (TesseractException | IOException e) {
@@ -177,19 +169,16 @@ public class FieldInfo {
     }
 
     private static boolean compareRegions(Mat filledRoi, Mat blankRoi) {
-
-
-
-
         if (filledRoi.size().equals(blankRoi.size())) {
-            int diffCount = 0;
-            for (int y = 0; y < filledRoi.rows(); y++) {
-                for (int x = 0; x < filledRoi.cols(); x++) {
-                    if (filledRoi.get(y, x)[0] != blankRoi.get(y, x)[0]) {
-                        diffCount++;
-                    }
-                }
-            }
+            Mat diff = new Mat();
+            Core.absdiff(filledRoi, blankRoi, diff);
+            Imgproc.threshold(diff, diff, 80, 255, Imgproc.THRESH_BINARY);
+            // Check for non-zero pixels
+            int diffCount = Core.countNonZero(diff);
+
+            // Debugging
+            debugImg("difference", diff);
+
             logger.debug("Number of Different Pixels: {}" , diffCount);
             return diffCount > 10; // Adjust threshold as needed
         } else {
