@@ -59,7 +59,7 @@ export class FieldExtractor {
   /**
    * Extract values from multiple UI elements
    */
-  async extractElements(elementConfigs: ElementConfig[]): Promise<ScreenComparison> {
+  async extractElements(elementConfigs: readonly ElementConfig[] | ElementConfig[]): Promise<ScreenComparison> {
     if (!this.blankForm || !this.filledForm) {
       throw new Error('Forms not loaded. Call loadForms() first.');
     }
@@ -138,16 +138,28 @@ export class FieldExtractor {
     const match = this.visionUtil.matchTemplate(sourceBlank, template);
 
     if (this.debug) {
-      console.log(`Field "${config.name}" match location:`, match.location);
-      console.log(`Field "${config.name}" confidence:`, match.confidence);
+      console.log(`Element "${config.name}" match location:`, match.location);
+      console.log(`Element "${config.name}" confidence:`, match.confidence);
+      if (config.animated) {
+        console.log(`Element "${config.name}" is animated - using looser matching`);
+      }
     }
 
     // Extract the ROI from the filled form
     const filledROI = this.visionUtil.extractROI(sourceFilled, match.rect);
     const blankROI = template;
 
-    // Compare the regions to detect if the field has been filled
-    const comparison = this.visionUtil.compareRegions(filledROI, blankROI);
+    // Compare the regions to detect if the element has been filled
+    // For animated elements, use looser thresholds since pixels are constantly changing
+    const threshold = config.animated ? 60 : 80;  // Lower threshold for animated elements
+    const minDiffPixels = config.animated ? 5 : 10;  // Fewer pixels needed for animated elements
+    
+    const comparison = this.visionUtil.compareRegions(
+      filledROI, 
+      blankROI, 
+      threshold, 
+      minDiffPixels
+    );
 
     if (this.debug) {
       console.log(
@@ -166,6 +178,10 @@ export class FieldExtractor {
     if (comparison.different) {
       if (isCheckbox) {
         value = 'checked';
+      } else if (config.animated) {
+        // For animated elements, don't try OCR - just mark as visible/present
+        value = 'visible';
+        isEmpty = false;
       } else {
         // Extract text using OCR on the difference
         const diffImage = this.visionUtil.createDiffImage(filledROI, blankROI, 90);
@@ -179,6 +195,10 @@ export class FieldExtractor {
       }
     } else if (isCheckbox) {
       value = 'unchecked';
+    } else if (config.animated) {
+      // Animated element not present
+      value = 'hidden';
+      isEmpty = true;
     }
 
     filledROI.delete();

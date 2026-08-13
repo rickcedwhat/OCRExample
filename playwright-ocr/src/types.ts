@@ -46,6 +46,12 @@ export interface ElementConfig {
   /** Type of UI element */
   type?: ElementType | undefined;
   
+  /** 
+   * Whether this element is animated/changes frequently
+   * Animated elements use looser matching and skip exact pixel comparison
+   */
+  animated?: boolean | undefined;
+  
   /** Deprecated: Use type: ElementType.CHECKBOX instead */
   isCheckbox?: boolean | undefined;
 }

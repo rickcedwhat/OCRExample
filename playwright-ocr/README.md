@@ -10,6 +10,8 @@ This library provides intelligent form testing capabilities for applications whe
 - **Image Alignment** - Handle skewed/rotated forms automatically  
 - **OCR (Tesseract.js)** - Extract actual text values from fields (95%+ accuracy with typed fonts)
 - **Pixel Difference Detection** - Identify filled vs empty fields and checkboxes
+- **Type-Safe Element Names** - Catch typos at compile time, not runtime
+- **Animated Element Support** - Handle loading spinners, progress bars, and dynamic UI
 
 **Perfect for typed/printed text applications:** Modern desktop apps use fonts (not handwriting), which gives OCR near-perfect accuracy. Tesseract excels at reading typed text from forms, invoices, labels, and UI elements.
 

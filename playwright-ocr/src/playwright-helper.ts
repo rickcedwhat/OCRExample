@@ -8,7 +8,7 @@ import * as path from 'path';
 
 export interface ScreenTestOptions {
   blankScreenPath: string;
-  elementConfigs: ElementConfig[];
+  elementConfigs: readonly ElementConfig[] | ElementConfig[];
   debug?: boolean | undefined;
 }
 
