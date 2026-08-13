@@ -27,13 +27,13 @@ export interface ElementConfig {
   templatePath: string;
   
   /** Optional: Path to section template if element is within a specific section */
-  sectionTemplatePath?: string;
+  sectionTemplatePath?: string | undefined;
   
   /** Type of UI element */
-  type?: ElementType;
+  type?: ElementType | undefined;
   
   /** Deprecated: Use type: ElementType.CHECKBOX instead */
-  isCheckbox?: boolean;
+  isCheckbox?: boolean | undefined;
 }
 
 /**

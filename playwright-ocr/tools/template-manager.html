@@ -704,17 +704,50 @@
 
         // Export templates
         document.getElementById('exportTemplates').addEventListener('click', () => {
+            const screenName = prompt('Enter screen name (e.g., login, checkout):', 'my-screen');
+            if (!screenName) return;
+            
             const config = templates.map(t => ({
                 name: t.name,
-                templatePath: `./fixtures/templates/${t.name.toLowerCase().replace(/\s+/g, '-')}.png`,
+                template: `${t.name.toLowerCase().replace(/\s+/g, '-')}.png`,
                 type: t.type
             }));
             
-            const code = `const elementConfigs: ElementConfig[] = [\n${config.map(c => 
-                `  {\n    name: '${c.name}',\n    templatePath: '${c.templatePath}',\n    type: ElementType.${c.type.toUpperCase()},\n  }`
-            ).join(',\n')}\n];`;
+            // Generate screen config format
+            const code = `import { defineScreen } from '../../../src/screen-config.js';
+import { ElementType } from '../../../src/types.js';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+/**
+ * ${screenName.charAt(0).toUpperCase() + screenName.slice(1)} screen configuration
+ */
+export const ${screenName}Screen = defineScreen({
+  name: '${screenName}',
+  baseDir: __dirname,
+  elements: [
+${config.map(c => 
+    `    {\n      name: '${c.name}',\n      template: '${c.template}',\n      type: ElementType.${c.type.toUpperCase()},\n    }`
+).join(',\n')}
+  ],
+});`;
             
             codeBlock.textContent = code;
+            
+            // Update instructions
+            document.querySelector('.export-section h3').textContent = 'Screen Configuration';
+            document.querySelector('.export-section p').innerHTML = `
+                <strong>Next steps:</strong><br>
+                1. Create <code>tests/screens/${screenName}/</code> folder<br>
+                2. Save this as <code>config.ts</code> in that folder<br>
+                3. Place <code>blank.png</code> in the folder<br>
+                4. Save templates to <code>templates/</code> subfolder<br>
+                5. Import in tests: <code>import { ${screenName}Screen } from './screens/${screenName}/config.js';</code>
+            `;
+            
             exportSection.style.display = 'block';
             exportSection.scrollIntoView({ behavior: 'smooth' });
         });
