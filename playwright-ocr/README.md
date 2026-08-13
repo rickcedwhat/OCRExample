@@ -28,6 +28,7 @@ This library provides intelligent form testing capabilities for applications whe
 | **Structured Output** | Exact field values | Text description |
 | **Debugging** | Pixel-level diffs | Text explanation |
 | **CI/CD Friendly** | ✅ Fast & free | ⚠️ Slow & costly |
+| **Type Safety** | ✅ Compile-time checking | ❌ Runtime only |
 
 ### Real-World Example
 
