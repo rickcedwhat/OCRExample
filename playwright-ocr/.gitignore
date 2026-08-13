@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+test-results/
+playwright-report/
+test-screenshots/
+.DS_Store
+*.swp
+*.swo
+*~
+.env
+.env.local

@@ -1,0 +1,57 @@
+{
+  "name": "playwright-ocr",
+  "version": "1.0.0",
+  "description": "Computer vision and OCR-based form testing for Playwright - a fast, local alternative to GPT Vision API",
+  "type": "module",
+  "main": "./dist/playwright-helper.js",
+  "types": "./dist/playwright-helper.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/playwright-helper.js",
+      "types": "./dist/playwright-helper.d.ts"
+    },
+    "./field-extractor": {
+      "import": "./dist/field-extractor.js",
+      "types": "./dist/field-extractor.d.ts"
+    },
+    "./utils/ocr": {
+      "import": "./dist/utils/ocr.js",
+      "types": "./dist/utils/ocr.d.ts"
+    },
+    "./utils/vision": {
+      "import": "./dist/utils/vision.js",
+      "types": "./dist/utils/vision.d.ts"
+    }
+  },
+  "scripts": {
+    "test": "playwright test",
+    "build": "tsc",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "playwright",
+    "ocr",
+    "computer-vision",
+    "form-testing",
+    "rdp-testing",
+    "desktop-automation",
+    "tesseract",
+    "opencv"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.2.0",
+    "@types/pngjs": "^6.0.5",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "opencv.js": "^1.2.1",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
+    "tesseract.js": "^7.0.0"
+  }
+}
