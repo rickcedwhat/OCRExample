@@ -14,6 +14,10 @@
       "import": "./dist/field-extractor.js",
       "types": "./dist/field-extractor.d.ts"
     },
+    "./typed-screen": {
+      "import": "./dist/typed-screen.js",
+      "types": "./dist/typed-screen.d.ts"
+    },
     "./utils/ocr": {
       "import": "./dist/utils/ocr.js",
       "types": "./dist/utils/ocr.d.ts"
