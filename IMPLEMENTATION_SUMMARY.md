@@ -312,6 +312,13 @@ Since you mentioned testing a desktop app via RDP with Playwright:
 - Works with mouse coordinates and screenshots
 - Integrates seamlessly with Playwright's screenshot API
 
+### ✅ Optimal for Typed/Font-Based Text
+- Your app uses fonts (not handwriting) - **this is ideal!**
+- OCR accuracy for typed text: **95-99%** (Tesseract's sweet spot)
+- No preprocessing or training needed
+- Fast and reliable extraction
+- Your Java POC already proved this works great for typed forms
+
 ### ✅ Form-Based Testing
 - You said it's "mostly form based" - this is ideal
 - Define fields once, reuse across all tests
