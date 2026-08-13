@@ -15,7 +15,12 @@ export interface ScreenTestOptions {
 
 // Re-export types for convenience
 export type { ElementConfig, ElementResult, ScreenComparison } from './field-extractor.js';
-export type { ElementVariant } from './types.js';
+export type { 
+  ElementVariant, 
+  CustomMatcherContext, 
+  CustomMatcherResult, 
+  CustomMatcherFunction 
+} from './types.js';
 export { ElementType } from './field-extractor.js';
 export { ScreenResult } from './screen-result.js';
 export { ScreenElement } from './element.js';

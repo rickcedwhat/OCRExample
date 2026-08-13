@@ -91,6 +91,11 @@ export class FieldExtractor {
       throw new Error('Forms not loaded. Call loadForms() first.');
     }
 
+    // If custom matcher is provided, use it
+    if (config.customMatcher) {
+      return await this.extractWithCustomMatcher(config);
+    }
+
     // Handle single template or variants (for now, just use first variant or templatePath)
     let templatePath = config.templatePath;
     let activeVariant: string | undefined;
@@ -215,6 +220,93 @@ export class FieldExtractor {
     };
   }
 
+
+  /**
+   * Extract element using custom matcher function
+   */
+  private async extractWithCustomMatcher(config: ElementConfig): Promise<ElementResult> {
+    if (!config.customMatcher) {
+      throw new Error('customMatcher is required');
+    }
+    
+    if (!config.templatePath) {
+      throw new Error(`Element "${config.name}" with customMatcher requires templatePath to locate the element`);
+    }
+
+    // Load template to find element location
+    const templateBuffer = await fs.readFile(config.templatePath);
+    const template = this.visionUtil.toGrayscale(
+      this.visionUtil.loadImage(templateBuffer)
+    );
+
+    let sourceBlank = this.blankForm;
+    let sourceFilled = this.filledForm;
+
+    // Handle section template if provided
+    if (config.sectionTemplatePath) {
+      const sectionBuffer = await fs.readFile(config.sectionTemplatePath);
+      const sectionTemplate = this.visionUtil.toGrayscale(
+        this.visionUtil.loadImage(sectionBuffer)
+      );
+
+      const sectionMatch = this.visionUtil.matchTemplate(
+        this.blankForm!,
+        sectionTemplate
+      );
+
+      sourceBlank = this.visionUtil.extractROI(this.blankForm!, sectionMatch.rect);
+      sourceFilled = this.visionUtil.extractROI(this.filledForm!, sectionMatch.rect);
+
+      sectionTemplate.delete();
+    }
+
+    // Find element location
+    const match = this.visionUtil.matchTemplate(sourceBlank!, template);
+
+    if (this.debug) {
+      console.log(`Element "${config.name}" (custom matcher) location:`, match.location);
+      console.log(`Element "${config.name}" (custom matcher) confidence:`, match.confidence);
+    }
+
+    // Extract ROIs
+    const filledROI = this.visionUtil.extractROI(sourceFilled!, match.rect);
+    const blankROI = template;
+
+    // Build context for custom matcher
+    const context: import('./types.js').CustomMatcherContext = {
+      blankROI,
+      filledROI,
+      templateROI: template,
+      location: match.rect,
+      config,
+      utils: {
+        createDiffImage: (roi1: any, roi2: any, threshold = 80) => 
+          this.visionUtil.createDiffImage(roi1, roi2, threshold),
+        matToBuffer: (mat: any) => 
+          this.visionUtil.matToBuffer(mat),
+        compareRegions: (roi1: any, roi2: any, threshold = 80, minDiffPixels = 10) => 
+          this.visionUtil.compareRegions(roi1, roi2, threshold, minDiffPixels),
+      },
+    };
+
+    // Call custom matcher
+    const customResult = await config.customMatcher(context);
+
+    // Clean up
+    filledROI.delete();
+    template.delete();
+
+    // Return result with custom matcher output + metadata
+    return {
+      name: config.name,
+      value: customResult.value,
+      confidence: customResult.confidence,
+      location: match.rect,
+      isEmpty: customResult.isEmpty,
+      type: config.type,
+      metadata: customResult.metadata,
+    };
+  }
 
   /**
    * Clean up OpenCV matrices

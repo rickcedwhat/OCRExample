@@ -189,6 +189,21 @@ export class ScreenElement {
   }
 
   /**
+   * Get custom metadata from custom matcher
+   * Returns undefined if no metadata available
+   */
+  metadata(): Record<string, any> | undefined {
+    return this.result.metadata;
+  }
+
+  /**
+   * Get a specific metadata value
+   */
+  getMetadata<T = any>(key: string): T | undefined {
+    return this.result.metadata?.[key] as T | undefined;
+  }
+
+  /**
    * Get element info for debugging
    */
   info(): ElementResult {

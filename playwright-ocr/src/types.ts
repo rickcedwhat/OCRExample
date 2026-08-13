@@ -28,6 +28,66 @@ export interface ElementVariant {
 }
 
 /**
+ * Context provided to custom matcher functions
+ */
+export interface CustomMatcherContext {
+  /** Region from blank form/screen */
+  blankROI: any; // cv.Mat
+  
+  /** Region from filled form/screen */
+  filledROI: any; // cv.Mat
+  
+  /** Template that was matched to find this location */
+  templateROI: any; // cv.Mat
+  
+  /** Location where element was found */
+  location: Rect;
+  
+  /** Element configuration */
+  config: ElementConfig;
+  
+  /** Utility functions */
+  utils: {
+    /** Create difference image between two regions */
+    createDiffImage: (roi1: any, roi2: any, threshold?: number) => any;
+    
+    /** Convert Mat to buffer for OCR */
+    matToBuffer: (mat: any) => Buffer;
+    
+    /** Compare two regions and get pixel difference stats */
+    compareRegions: (roi1: any, roi2: any, threshold?: number, minDiffPixels?: number) => {
+      different: boolean;
+      diffPixelCount: number;
+      diffPercentage: number;
+    };
+  };
+}
+
+/**
+ * Result from custom matcher function
+ */
+export interface CustomMatcherResult {
+  /** Extracted value */
+  value: string;
+  
+  /** Confidence score (0-1) */
+  confidence: number;
+  
+  /** Whether element is in empty/default state */
+  isEmpty: boolean;
+  
+  /** Optional: Additional metadata */
+  metadata?: Record<string, any> | undefined;
+}
+
+/**
+ * Custom matcher function type
+ */
+export type CustomMatcherFunction = (
+  context: CustomMatcherContext
+) => Promise<CustomMatcherResult> | CustomMatcherResult;
+
+/**
  * Configuration for a single UI element to extract
  */
 export interface ElementConfig {
@@ -51,6 +111,13 @@ export interface ElementConfig {
    * Animated elements use looser matching and skip exact pixel comparison
    */
   animated?: boolean | undefined;
+  
+  /**
+   * Custom matcher function for advanced use cases
+   * Provides full control over element matching and value extraction
+   * Example: Extract progress percentage from progress bar
+   */
+  customMatcher?: CustomMatcherFunction | undefined;
   
   /** Deprecated: Use type: ElementType.CHECKBOX instead */
   isCheckbox?: boolean | undefined;
@@ -80,6 +147,9 @@ export interface ElementResult {
   
   /** Which variant matched (if element has variants) */
   variant?: string | undefined;
+  
+  /** Custom metadata from custom matcher (e.g., { percentage: 47 }) */
+  metadata?: Record<string, any> | undefined;
 }
 
 /**
