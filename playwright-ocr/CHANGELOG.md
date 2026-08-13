@@ -1,5 +1,208 @@
 # Changelog
 
+## v2.1.0 - Type Safety & Animated Elements (2026-08-13)
+
+### 🎯 Type-Safe Element Names
+
+Get compile-time type checking for element names - catch typos before running tests!
+
+```typescript
+import { defineTypedScreen, ElementType } from 'playwright-ocr';
+
+// Define screen with 'as const' for type safety
+const loginScreen = defineTypedScreen({
+  name: 'login',
+  baseDir: __dirname,
+  elements: [
+    { name: 'Username', template: 'username.png', type: ElementType.FIELD },
+    { name: 'Password', template: 'password.png', type: ElementType.FIELD },
+  ] as const,  // Magic ingredient!
+});
+
+// ✅ TypeScript knows valid element names
+await screen.element('Username').toBeFilled();
+
+// ❌ TypeScript error at compile time (not runtime!)
+await screen.element('UserName').toBeFilled();
+//                   ~~~~~~~~~~
+// Error: Argument of type '"UserName"' is not assignable to 
+//        parameter of type '"Username" | "Password"'
+```
+
+**Benefits:**
+- IDE autocomplete shows valid element names
+- Typos caught during development, not in CI
+- Safe refactoring - rename in config, all usages show errors
+- No more "element not found" runtime surprises
+
+See [TYPE_SAFETY.md](./TYPE_SAFETY.md) for complete guide.
+
+### 🔄 Animated Element Support
+
+Handle loading spinners, progress bars, and other dynamic UI that constantly changes pixels:
+
+```typescript
+const checkoutScreen = defineTypedScreen({
+  name: 'checkout',
+  baseDir: __dirname,
+  elements: [
+    {
+      name: 'Loading Spinner',
+      template: 'spinner.png',
+      type: ElementType.ICON,
+      animated: true,  // Use looser matching!
+    },
+    {
+      name: 'Pay Button',
+      variants: {
+        enabled: { template: 'pay-enabled.png' },
+        loading: { template: 'pay-loading.png' },
+      },
+      type: ElementType.BUTTON,
+    },
+  ] as const,
+});
+
+// Check if spinner is present (not exact pixels)
+await screen.element('Loading Spinner').toBeVisible();
+await screen.element('Loading Spinner').toBeFilled();
+
+// After action completes
+await screen.element('Loading Spinner').toBeEmpty();
+```
+
+**How it works:**
+- Uses **looser thresholds** (0.5 vs 0.7 confidence, 60 vs 80 pixel threshold)
+- Checks if region **changed from blank** (not exact match)
+- **No OCR** on animated elements (returns 'visible'/'hidden')
+- Considers element found if **anything is present** in that region
+
+**What you can detect:**
+- ✅ Loading spinner appeared/disappeared
+- ✅ Progress bar region changed
+- ✅ Blinking indicator is active
+- ❌ Exact animation frame (not needed)
+- ❌ Progress percentage (use discrete state variants)
+
+See [ANIMATED_ELEMENTS.md](./ANIMATED_ELEMENTS.md) for complete guide.
+
+### 📦 New Exports
+
+```typescript
+// Main module exports
+import {
+  defineTypedScreen,       // Create type-safe screen configs
+  TypedScreenResult,       // Type-safe screen result wrapper
+  ElementType,
+} from 'playwright-ocr';
+
+import type {
+  TypedScreenConfig,       // Type for typed configs
+} from 'playwright-ocr';
+
+// Or import from sub-module
+import { defineTypedScreen, TypedScreenResult } from 'playwright-ocr/typed-screen';
+```
+
+### 🔧 API Changes
+
+#### ElementConfig
+```typescript
+export interface ElementConfig {
+  name: string;
+  templatePath?: string;
+  variants?: Record<string, ElementVariant>;
+  sectionTemplatePath?: string;
+  type?: ElementType;
+  animated?: boolean;  // NEW: Mark element as animated
+  isCheckbox?: boolean; // Deprecated
+}
+```
+
+#### FieldExtractor.extractElements()
+Now accepts readonly arrays for compatibility with typed configs:
+```typescript
+async extractElements(
+  elementConfigs: readonly ElementConfig[] | ElementConfig[]
+): Promise<ScreenComparison>
+```
+
+#### PlaywrightFormTester.compareScreen()
+Now accepts readonly element configs:
+```typescript
+export interface ScreenTestOptions {
+  blankScreenPath: string;
+  elementConfigs: readonly ElementConfig[] | ElementConfig[];
+  debug?: boolean;
+}
+```
+
+### 📚 New Documentation
+
+- [TYPE_SAFETY.md](./TYPE_SAFETY.md) - Complete type safety guide
+  - How `as const` works
+  - IDE autocomplete benefits
+  - Migration from `defineScreen`
+  - Real-world examples
+  
+- [ANIMATED_ELEMENTS.md](./ANIMATED_ELEMENTS.md) - Dynamic UI handling
+  - When to use `animated: true`
+  - Multiple approaches (region detection, variants, presence checks)
+  - Real-world patterns (login flow, checkout, progress bars)
+  - Limitations and workarounds
+  
+- [FEATURES.md](./FEATURES.md) - Complete feature overview
+  - Type safety
+  - Animated elements
+  - Element variants
+  - Playwright-idiomatic API
+  - Screen-based configuration
+  - Visual Template Manager
+
+### 🎯 Migration
+
+#### Using Type Safety (Opt-in)
+```typescript
+// Before (still works!)
+export const loginScreen = defineScreen({ ... });
+
+// After (type-safe!)
+export const loginScreen = defineTypedScreen({
+  ...
+  elements: [ ... ] as const,  // Add 'as const'
+});
+```
+
+#### Handling Animated Elements
+```typescript
+// Before - spinner often failed to match
+{
+  name: 'Loading Spinner',
+  template: 'spinner.png',
+  type: ElementType.ICON,
+}
+
+// After - works reliably!
+{
+  name: 'Loading Spinner',
+  template: 'spinner.png',
+  type: ElementType.ICON,
+  animated: true,  // Use presence detection
+}
+```
+
+### 🛡️ Backward Compatibility
+
+**100% backward compatible!** 
+
+- `defineScreen()` still works (no type safety)
+- `animated: false` (default) uses same logic as before
+- All existing configs continue to work unchanged
+
+Type safety and animated element support are **opt-in enhancements**.
+
+---
+
 ## v2.0.0 - Element-Based API (2026-08-13)
 
 ### 🎨 New Features
