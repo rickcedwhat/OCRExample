@@ -2,31 +2,23 @@ import { VisionUtil } from './utils/vision.js';
 import type { Rect, MatchResult } from './utils/vision.js';
 import { OCRUtil } from './utils/ocr.js';
 import * as fs from 'fs/promises';
+import { ElementType } from './types.js';
+import type { ElementConfig, ElementResult, ScreenComparison } from './types.js';
+export { ElementType };
+export type { ElementConfig, ElementResult, ScreenComparison };
 
-export interface FieldConfig {
-  name: string;
-  templatePath: string;
-  sectionTemplatePath?: string;
-  isCheckbox?: boolean;
-}
-
-export interface FieldResult {
-  name: string;
-  value: string;
-  confidence?: number;
-  location: Rect;
-  isEmpty: boolean;
-}
-
-export interface FormComparison {
-  fields: FieldResult[];
-  totalFields: number;
-  filledFields: number;
-  emptyFields: number;
-}
+// Legacy exports for backward compatibility
+/** @deprecated Use ElementConfig instead */
+export type FieldConfig = ElementConfig;
+/** @deprecated Use ElementResult instead */
+export type FieldResult = ElementResult;
+/** @deprecated Use ScreenComparison instead */
+export type FormComparison = ScreenComparison;
 
 /**
- * Extracts field values from filled forms by comparing them to blank templates
+ * Extracts UI element values from filled screens by comparing them to blank templates
+ * 
+ * @deprecated Class name is outdated. Functionality remains the same but considers renaming to ElementExtractor.
  */
 export class FieldExtractor {
   private visionUtil: VisionUtil;
@@ -72,35 +64,50 @@ export class FieldExtractor {
   }
 
   /**
-   * Extract values from multiple fields
+   * Extract values from multiple UI elements
    */
-  async extractFields(fieldConfigs: FieldConfig[]): Promise<FormComparison> {
+  async extractElements(elementConfigs: ElementConfig[]): Promise<ScreenComparison> {
     if (!this.blankForm || !this.filledForm) {
       throw new Error('Forms not loaded. Call loadForms() first.');
     }
 
-    const results: FieldResult[] = [];
+    const results: ElementResult[] = [];
 
-    for (const config of fieldConfigs) {
-      const result = await this.extractField(config);
+    for (const config of elementConfigs) {
+      const result = await this.extractElement(config);
       results.push(result);
     }
 
-    const filledFields = results.filter((r) => !r.isEmpty).length;
-    const emptyFields = results.filter((r) => r.isEmpty).length;
+    const filledElements = results.filter((r) => !r.isEmpty).length;
+    const emptyElements = results.filter((r) => r.isEmpty).length;
 
     return {
-      fields: results,
-      totalFields: results.length,
-      filledFields,
-      emptyFields,
+      elements: results,
+      totalElements: results.length,
+      filledElements,
+      emptyElements,
     };
   }
 
   /**
-   * Extract a single field value
+   * @deprecated Use extractElements instead
    */
-  async extractField(config: FieldConfig): Promise<FieldResult> {
+  async extractFields(fieldConfigs: ElementConfig[]): Promise<ScreenComparison> {
+    const result = await this.extractElements(fieldConfigs);
+    // Add legacy fields property for backward compatibility
+    return {
+      ...result,
+      fields: result.elements,
+      totalFields: result.totalElements,
+      filledFields: result.filledElements,
+      emptyFields: result.emptyElements,
+    } as any;
+  }
+
+  /**
+   * Extract a single UI element value
+   */
+  async extractElement(config: ElementConfig): Promise<ElementResult> {
     if (!this.blankForm || !this.filledForm) {
       throw new Error('Forms not loaded. Call loadForms() first.');
     }
@@ -157,8 +164,11 @@ export class FieldExtractor {
     let value = '';
     let isEmpty = !comparison.different;
 
+    // Support both new type property and legacy isCheckbox
+    const isCheckbox = config.type === 'checkbox' || config.isCheckbox;
+
     if (comparison.different) {
-      if (config.isCheckbox) {
+      if (isCheckbox) {
         value = 'checked';
       } else {
         // Extract text using OCR on the difference
@@ -171,7 +181,7 @@ export class FieldExtractor {
           isEmpty = true;
         }
       }
-    } else if (config.isCheckbox) {
+    } else if (isCheckbox) {
       value = 'unchecked';
     }
 
@@ -184,7 +194,15 @@ export class FieldExtractor {
       confidence: match.confidence,
       location: match.rect,
       isEmpty,
+      type: config.type,
     };
+  }
+
+  /**
+   * @deprecated Use extractElement instead
+   */
+  async extractField(config: ElementConfig): Promise<ElementResult> {
+    return this.extractElement(config);
   }
 
   /**

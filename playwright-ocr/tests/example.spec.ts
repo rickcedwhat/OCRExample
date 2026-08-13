@@ -98,11 +98,11 @@ test.describe('Form Field Extraction', () => {
 
     // Make assertions about the extracted data
     console.log('Extraction Results:');
-    console.log(`Total fields: ${results.totalFields}`);
-    console.log(`Filled fields: ${results.filledFields}`);
-    console.log(`Empty fields: ${results.emptyFields}`);
+    console.log(`Total elements: ${results.totalElements}`);
+    console.log(`Filled elements: ${results.filledElements}`);
+    console.log(`Empty elements: ${results.emptyElements}`);
 
-    for (const field of results.fields) {
+    for (const field of results.elements) {
       console.log(`\n${field.name}:`);
       console.log(`  Value: ${field.value}`);
       console.log(`  Empty: ${field.isEmpty}`);
@@ -111,16 +111,16 @@ test.describe('Form Field Extraction', () => {
     }
 
     // Example assertions
-    expect(results.totalFields).toBe(6);
+    expect(results.totalElements).toBe(6);
     
-    // Check that at least some fields were filled
-    expect(results.filledFields).toBeGreaterThan(0);
+    // Check that at least some elements were filled
+    expect(results.filledElements).toBeGreaterThan(0);
 
-    // Find specific fields
-    const ssnField = results.fields.find((f) => f.name === 'SSN');
+    // Find specific elements
+    const ssnField = results.elements.find((f) => f.name === 'SSN');
     expect(ssnField).toBeDefined();
     
-    const retirementField = results.fields.find((f) => f.name === 'Retirement Plan');
+    const retirementField = results.elements.find((f) => f.name === 'Retirement Plan');
     expect(retirementField).toBeDefined();
     expect(retirementField?.value).toMatch(/checked|unchecked/);
 
@@ -150,18 +150,18 @@ test.describe('Form Field Extraction', () => {
     const emptyResults = await formTester.compareForm(emptyFormScreenshot, {
       blankFormPath,
       fieldConfigs,
-    });
+    }) as any;
 
     const filledResults = await formTester.compareForm(filledFormScreenshot, {
       blankFormPath,
       fieldConfigs,
-    });
+    }) as any;
 
-    // Verify that the empty form has no filled fields
-    expect(emptyResults.filledFields).toBe(0);
+    // Verify that the empty form has no filled elements (using legacy property)
+    expect(emptyResults.filledFields || emptyResults.filledElements).toBe(0);
     
-    // Verify that the filled form has some filled fields
-    expect(filledResults.filledFields).toBeGreaterThan(0);
+    // Verify that the filled form has some filled elements (using legacy property)
+    expect(filledResults.filledFields || filledResults.filledElements).toBeGreaterThan(0);
 
     await formTester.cleanup();
   });

@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playwright OCR - Template Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .main {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            min-height: calc(100vh - 200px);
+        }
+
+        .sidebar {
+            background: #fafafa;
+            border-right: 1px solid #e0e0e0;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #666;
+            margin-bottom: 15px;
+            letter-spacing: 0.5px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #f9f9f9;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 6px;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .canvas-area {
+            padding: 30px;
+            position: relative;
+            overflow: auto;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            display: inline-block;
+            cursor: crosshair;
+        }
+
+        #imageCanvas {
+            border: 2px solid #e0e0e0;
+            border-radius: 4px;
+            display: block;
+        }
+
+        .selection-box {
+            position: absolute;
+            border: 2px solid #667eea;
+            background: rgba(102, 126, 234, 0.1);
+            pointer-events: none;
+        }
+
+        .templates-list {
+            margin-top: 20px;
+        }
+
+        .template-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .template-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .template-item.active {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .template-name {
+            font-weight: 500;
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .template-type {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .template-location {
+            font-size: 11px;
+            color: #999;
+            font-family: monospace;
+        }
+
+        .template-actions {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .template-actions button {
+            flex: 1;
+            padding: 6px;
+            font-size: 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-test {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-test:hover {
+            background: #059669;
+        }
+
+        .btn-delete {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: #dc2626;
+        }
+
+        .instructions {
+            background: #fef3c7;
+            border: 1px solid #fbbf24;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .instructions strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #92400e;
+        }
+
+        .mode-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .mode-btn.active {
+            border-color: #667eea;
+            background: #f8f9ff;
+            color: #667eea;
+        }
+
+        .match-indicator {
+            position: absolute;
+            border: 3px solid #10b981;
+            background: rgba(16, 185, 129, 0.2);
+            pointer-events: none;
+            border-radius: 4px;
+        }
+
+        .match-label {
+            position: absolute;
+            background: #10b981;
+            color: white;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-weight: 600;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        .no-image {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .no-image svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        .export-section {
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            border-radius: 6px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .export-section h3 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            color: #166534;
+        }
+
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+
+        .copy-btn {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .copy-btn:hover {
+            background: #059669;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Template Manager</h1>
+            <p>Create and test templates for UI element extraction</p>
+        </div>
+
+        <div class="main">
+            <div class="sidebar">
+                <div class="section">
+                    <div class="section-title">Mode</div>
+                    <div class="mode-toggle">
+                        <button class="mode-btn active" data-mode="create">Create</button>
+                        <button class="mode-btn" data-mode="test">Test</button>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">1. Load Image</div>
+                    <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+                    <button class="btn btn-primary" onclick="document.getElementById('imageUpload').click()">
+                        📁 Load Blank Form
+                    </button>
+                </div>
+
+                <div class="section" id="createSection">
+                    <div class="section-title">2. Draw & Save</div>
+                    <div class="instructions">
+                        <strong>How to use:</strong>
+                        Click and drag on the image to select an element. Then name it and save.
+                    </div>
+
+                    <div class="input-group">
+                        <label>Element Name</label>
+                        <input type="text" id="elementName" placeholder="e.g., Submit Button">
+                    </div>
+
+                    <div class="input-group">
+                        <label>Element Type</label>
+                        <select id="elementType">
+                            <option value="field">Field</option>
+                            <option value="button">Button</option>
+                            <option value="checkbox">Checkbox</option>
+                            <option value="radio">Radio Button</option>
+                            <option value="link">Link</option>
+                            <option value="icon">Icon</option>
+                            <option value="label">Label</option>
+                            <option value="dropdown">Dropdown</option>
+                            <option value="message">Message</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <button class="btn btn-primary" id="saveTemplate" disabled>
+                        💾 Save Template
+                    </button>
+
+                    <button class="btn btn-secondary" id="clearSelection">
+                        ✕ Clear Selection
+                    </button>
+                </div>
+
+                <div class="section" id="testSection" style="display: none;">
+                    <div class="section-title">2. Test Matching</div>
+                    <div class="instructions">
+                        <strong>How to use:</strong>
+                        Click on a saved template to test if it matches on the current image.
+                    </div>
+                    <button class="btn btn-primary" id="testAll">
+                        🎯 Test All Templates
+                    </button>
+                </div>
+
+                <div class="section">
+                    <div class="section-title">Saved Templates</div>
+                    <div class="templates-list" id="templatesList">
+                        <p style="color: #999; font-size: 13px; text-align: center; padding: 20px;">
+                            No templates yet
+                        </p>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <button class="btn btn-secondary" id="exportTemplates">
+                        📤 Export Config
+                    </button>
+                    <button class="btn btn-danger" id="clearAll">
+                        🗑️ Clear All
+                    </button>
+                </div>
+            </div>
+
+            <div class="canvas-area">
+                <div id="noImage" class="no-image">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <p>Load an image to get started</p>
+                </div>
+
+                <div class="canvas-wrapper" id="canvasWrapper" style="display: none;">
+                    <canvas id="imageCanvas"></canvas>
+                </div>
+
+                <div class="export-section" id="exportSection" style="display: none;">
+                    <h3>TypeScript Configuration</h3>
+                    <p style="font-size: 13px; color: #166534; margin-bottom: 10px;">
+                        Copy this into your test file:
+                    </p>
+                    <div class="code-block" id="codeBlock"></div>
+                    <button class="copy-btn" id="copyCode">📋 Copy Code</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentImage = null;
+        let templates = JSON.parse(localStorage.getItem('templates') || '[]');
+        let isDrawing = false;
+        let startX, startY, currentX, currentY;
+        let currentMode = 'create';
+        let selectionBox = null;
+        let matchIndicators = [];
+
+        // Elements
+        const canvas = document.getElementById('imageCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+        const noImage = document.getElementById('noImage');
+        const imageUpload = document.getElementById('imageUpload');
+        const elementNameInput = document.getElementById('elementName');
+        const elementTypeSelect = document.getElementById('elementType');
+        const saveTemplateBtn = document.getElementById('saveTemplate');
+        const clearSelectionBtn = document.getElementById('clearSelection');
+        const templatesList = document.getElementById('templatesList');
+        const exportSection = document.getElementById('exportSection');
+        const codeBlock = document.getElementById('codeBlock');
+
+        // Initialize
+        renderTemplatesList();
+
+        // Mode switching
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMode = btn.dataset.mode;
+                
+                document.getElementById('createSection').style.display = currentMode === 'create' ? 'block' : 'none';
+                document.getElementById('testSection').style.display = currentMode === 'test' ? 'block' : 'none';
+                
+                clearMatchIndicators();
+                clearSelection();
+            });
+        });
+
+        // Image upload
+        imageUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        currentImage = img;
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        ctx.drawImage(img, 0, 0);
+                        
+                        noImage.style.display = 'none';
+                        canvasWrapper.style.display = 'block';
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Canvas drawing
+        canvas.addEventListener('mousedown', (e) => {
+            if (!currentImage || currentMode !== 'create') return;
+            
+            const rect = canvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            isDrawing = true;
+            
+            clearSelection();
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            currentX = e.clientX - rect.left;
+            currentY = e.clientY - rect.top;
+            
+            drawSelection();
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (!isDrawing) return;
+            isDrawing = false;
+            saveTemplateBtn.disabled = false;
+        });
+
+        function drawSelection() {
+            // Redraw image
+            ctx.drawImage(currentImage, 0, 0);
+            
+            // Draw selection rectangle
+            const x = Math.min(startX, currentX);
+            const y = Math.min(startY, currentY);
+            const width = Math.abs(currentX - startX);
+            const height = Math.abs(currentY - startY);
+            
+            ctx.strokeStyle = '#667eea';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, width, height);
+            ctx.fillStyle = 'rgba(102, 126, 234, 0.1)';
+            ctx.fillRect(x, y, width, height);
+        }
+
+        function clearSelection() {
+            if (currentImage) {
+                ctx.drawImage(currentImage, 0, 0);
+            }
+            startX = startY = currentX = currentY = null;
+            saveTemplateBtn.disabled = true;
+        }
+
+        clearSelectionBtn.addEventListener('click', clearSelection);
+
+        // Save template
+        saveTemplateBtn.addEventListener('click', () => {
+            const name = elementNameInput.value.trim();
+            const type = elementTypeSelect.value;
+            
+            if (!name) {
+                alert('Please enter an element name');
+                return;
+            }
+            
+            const x = Math.min(startX, currentX);
+            const y = Math.min(startY, currentY);
+            const width = Math.abs(currentX - startX);
+            const height = Math.abs(currentY - startY);
+            
+            // Extract template image data
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(currentImage, x, y, width, height, 0, 0, width, height);
+            const templateData = tempCanvas.toDataURL();
+            
+            const template = {
+                id: Date.now(),
+                name,
+                type,
+                x,
+                y,
+                width,
+                height,
+                imageData: templateData
+            };
+            
+            templates.push(template);
+            localStorage.setItem('templates', JSON.stringify(templates));
+            
+            renderTemplatesList();
+            clearSelection();
+            elementNameInput.value = '';
+            
+            alert('Template saved!');
+        });
+
+        // Render templates list
+        function renderTemplatesList() {
+            if (templates.length === 0) {
+                templatesList.innerHTML = '<p style="color: #999; font-size: 13px; text-align: center; padding: 20px;">No templates yet</p>';
+                return;
+            }
+            
+            templatesList.innerHTML = templates.map(t => `
+                <div class="template-item" data-id="${t.id}">
+                    <div class="template-name">${t.name}</div>
+                    <div class="template-type">Type: ${t.type}</div>
+                    <div class="template-location">Location: (${t.x}, ${t.y}) ${t.width}×${t.height}</div>
+                    <div class="template-actions">
+                        <button class="btn-test" onclick="testTemplate(${t.id})">Test</button>
+                        <button class="btn-delete" onclick="deleteTemplate(${t.id})">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Test template
+        window.testTemplate = (id) => {
+            if (!currentImage) {
+                alert('Please load an image first');
+                return;
+            }
+            
+            const template = templates.find(t => t.id === id);
+            if (!template) return;
+            
+            clearMatchIndicators();
+            
+            // Simple template matching simulation
+            // In real implementation, this would use OpenCV.js
+            const indicator = document.createElement('div');
+            indicator.className = 'match-indicator';
+            indicator.style.left = template.x + 'px';
+            indicator.style.top = template.y + 'px';
+            indicator.style.width = template.width + 'px';
+            indicator.style.height = template.height + 'px';
+            
+            const label = document.createElement('div');
+            label.className = 'match-label';
+            label.textContent = template.name + ' (simulated match)';
+            label.style.left = template.x + 'px';
+            label.style.top = (template.y - 25) + 'px';
+            
+            canvasWrapper.appendChild(indicator);
+            canvasWrapper.appendChild(label);
+            
+            matchIndicators.push(indicator, label);
+        };
+
+        // Test all templates
+        document.getElementById('testAll').addEventListener('click', () => {
+            if (!currentImage) {
+                alert('Please load an image first');
+                return;
+            }
+            
+            clearMatchIndicators();
+            templates.forEach(t => testTemplate(t.id));
+        });
+
+        function clearMatchIndicators() {
+            matchIndicators.forEach(el => el.remove());
+            matchIndicators = [];
+        }
+
+        // Delete template
+        window.deleteTemplate = (id) => {
+            if (!confirm('Delete this template?')) return;
+            
+            templates = templates.filter(t => t.id !== id);
+            localStorage.setItem('templates', JSON.stringify(templates));
+            renderTemplatesList();
+            clearMatchIndicators();
+        };
+
+        // Export templates
+        document.getElementById('exportTemplates').addEventListener('click', () => {
+            const config = templates.map(t => ({
+                name: t.name,
+                templatePath: `./fixtures/templates/${t.name.toLowerCase().replace(/\s+/g, '-')}.png`,
+                type: t.type
+            }));
+            
+            const code = `const elementConfigs: ElementConfig[] = [\n${config.map(c => 
+                `  {\n    name: '${c.name}',\n    templatePath: '${c.templatePath}',\n    type: ElementType.${c.type.toUpperCase()},\n  }`
+            ).join(',\n')}\n];`;
+            
+            codeBlock.textContent = code;
+            exportSection.style.display = 'block';
+            exportSection.scrollIntoView({ behavior: 'smooth' });
+        });
+
+        // Copy code
+        document.getElementById('copyCode').addEventListener('click', () => {
+            navigator.clipboard.writeText(codeBlock.textContent);
+            alert('Code copied to clipboard!');
+        });
+
+        // Clear all
+        document.getElementById('clearAll').addEventListener('click', () => {
+            if (!confirm('Delete all templates? This cannot be undone.')) return;
+            
+            templates = [];
+            localStorage.setItem('templates', JSON.stringify(templates));
+            renderTemplatesList();
+            clearMatchIndicators();
+            exportSection.style.display = 'none';
+        });
+    </script>
+</body>
+</html>
