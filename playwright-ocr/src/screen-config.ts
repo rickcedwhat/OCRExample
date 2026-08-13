@@ -1,5 +1,59 @@
 import type { ElementConfig, ScreenComparison, ElementType } from './types.js';
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
+
+/** Home-dir settings written by the Template Manager for external image storage. */
+export const SCREENS_SETTINGS_FILE = '.playwright-ocr-screens.json';
+
+function expandHomeDir(raw: string): string {
+  if (raw === '~') return os.homedir();
+  if (raw.startsWith('~/') || raw.startsWith('~\\')) {
+    return path.join(os.homedir(), raw.slice(2));
+  }
+  return raw;
+}
+
+function readExternalScreensRoot(): string | undefined {
+  const fromEnv = process.env.OCR_SCREENS_DIR?.trim();
+  if (fromEnv) return expandHomeDir(fromEnv);
+
+  try {
+    const file = path.join(os.homedir(), SCREENS_SETTINGS_FILE);
+    if (!fs.existsSync(file)) return undefined;
+    const data = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+      storage?: string;
+      screensDir?: string;
+      imagesLocation?: string;
+      imagesDir?: string;
+    };
+    if (data.imagesLocation === 'custom' && data.imagesDir?.trim()) {
+      return expandHomeDir(data.imagesDir.trim());
+    }
+    if (data.storage === 'external' && data.screensDir?.trim()) {
+      return expandHomeDir(data.screensDir.trim());
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve where a screen's PNG assets live.
+ * Uses OCR_SCREENS_DIR or ~/.playwright-ocr-screens.json when those images exist,
+ * otherwise falls back to the in-repo screen folder (typically __dirname).
+ */
+export function screenAssetsDir(screenName: string, fallbackDir: string): string {
+  const root = readExternalScreensRoot();
+  if (root) {
+    const dir = path.join(root, screenName);
+    if (fs.existsSync(path.join(dir, 'blank.png'))) {
+      return dir;
+    }
+  }
+  return fallbackDir;
+}
 
 /**
  * Configuration for a single screen/page

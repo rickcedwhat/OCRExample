@@ -32,6 +32,7 @@
     "build": "tsc",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
+    "template-manager": "node tools/template-manager-server.mjs",
     "prepare": "npm run build"
   },
   "keywords": [

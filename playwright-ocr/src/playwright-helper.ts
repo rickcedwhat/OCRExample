@@ -24,7 +24,7 @@ export type {
 export { ElementType } from './field-extractor.js';
 export { ScreenResult } from './screen-result.js';
 export { ScreenElement } from './element.js';
-export { defineScreen } from './screen-config.js';
+export { defineScreen, screenAssetsDir } from './screen-config.js';
 export type { ScreenConfig } from './screen-config.js';
 export { defineTypedScreen, TypedScreenResult } from './typed-screen.js';
 export type { TypedScreenConfig } from './typed-screen.js';

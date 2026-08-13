@@ -30,6 +30,10 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
         }
 
         .header h1 {
@@ -42,9 +46,24 @@
             font-size: 14px;
         }
 
+        .status-badge {
+            font-size: 12px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            white-space: nowrap;
+            font-weight: 500;
+            background: rgba(255,255,255,0.15);
+            color: #e2e8f0;
+        }
+
+        .status-badge.online {
+            background: rgba(16, 185, 129, 0.25);
+            color: #d1fae5;
+        }
+
         .main {
             display: grid;
-            grid-template-columns: 300px 1fr;
+            grid-template-columns: 320px 1fr;
             min-height: calc(100vh - 200px);
         }
 
@@ -80,12 +99,17 @@
             margin-bottom: 10px;
         }
 
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .btn-primary {
             background: #667eea;
             color: white;
         }
 
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background: #5568d3;
         }
 
@@ -95,7 +119,7 @@
             border: 1px solid #ddd;
         }
 
-        .btn-secondary:hover {
+        .btn-secondary:hover:not(:disabled) {
             background: #f9f9f9;
         }
 
@@ -104,7 +128,7 @@
             color: white;
         }
 
-        .btn-danger:hover {
+        .btn-danger:hover:not(:disabled) {
             background: #dc2626;
         }
 
@@ -128,6 +152,83 @@
             font-size: 14px;
         }
 
+        .name-hint {
+            font-size: 12px;
+            color: #b45309;
+            margin-top: 6px;
+            min-height: 16px;
+        }
+
+        .path-preview {
+            font-size: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            color: #555;
+            background: #f8f8f8;
+            border: 1px solid #eee;
+            padding: 8px 10px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+
+        .storage-toggle {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .storage-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 13px;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .storage-option input {
+            margin-top: 2px;
+        }
+
+        .existing-screens {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .screen-tag {
+            font-size: 11px;
+            background: #eef2ff;
+            color: #4338ca;
+            padding: 3px 8px;
+            border-radius: 999px;
+        }
+
+        .save-result {
+            font-size: 12px;
+            line-height: 1.5;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            display: none;
+        }
+
+        .save-result.ok {
+            display: block;
+            background: #f0fdf4;
+            border: 1px solid #86efac;
+            color: #166534;
+        }
+
+        .save-result.err {
+            display: block;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+        }
+
         .canvas-area {
             padding: 30px;
             position: relative;
@@ -144,13 +245,6 @@
             border: 2px solid #e0e0e0;
             border-radius: 4px;
             display: block;
-        }
-
-        .selection-box {
-            position: absolute;
-            border: 2px solid #667eea;
-            background: rgba(102, 126, 234, 0.1);
-            pointer-events: none;
         }
 
         .templates-list {
@@ -170,11 +264,6 @@
         .template-item:hover {
             border-color: #667eea;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .template-item.active {
-            border-color: #667eea;
-            background: #f8f9ff;
         }
 
         .template-name {
@@ -326,6 +415,7 @@
             line-height: 1.5;
             overflow-x: auto;
             margin-top: 10px;
+            white-space: pre-wrap;
         }
 
         .copy-btn {
@@ -347,8 +437,11 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎨 Template Manager</h1>
-            <p>Create and test templates for UI element extraction</p>
+            <div>
+                <h1>🎨 Template Manager</h1>
+                <p>Export writes config.ts and images to the folders you choose</p>
+            </div>
+            <div id="connectionStatus" class="status-badge">Checking project connection…</div>
         </div>
 
         <div class="main">
@@ -373,12 +466,13 @@
                     <div class="section-title">2. Draw & Save</div>
                     <div class="instructions">
                         <strong>How to use:</strong>
-                        Click and drag on the image to select an element. Then name it and save.
+                        Click and drag on the image to select an element. Names are converted to camelCase (hyphens become camelCase).
                     </div>
 
                     <div class="input-group">
                         <label>Element Name</label>
-                        <input type="text" id="elementName" placeholder="e.g., Submit Button">
+                        <input type="text" id="elementName" placeholder="e.g. firstNameInput">
+                        <div class="name-hint" id="elementNameHint"></div>
                     </div>
 
                     <div class="input-group">
@@ -410,7 +504,7 @@
                     <div class="section-title">2. Test Matching</div>
                     <div class="instructions">
                         <strong>How to use:</strong>
-                        Click on a saved template to test if it matches on the current image.
+                        Click on a saved template to overlay its saved box on the current image.
                     </div>
                     <button class="btn btn-primary" id="testAll">
                         🎯 Test All Templates
@@ -427,8 +521,54 @@
                 </div>
 
                 <div class="section">
-                    <button class="btn btn-secondary" id="exportTemplates">
-                        📤 Export Config
+                    <div class="section-title">Export Screen</div>
+                    <div class="input-group">
+                        <label>Screen Name</label>
+                        <input type="text" id="screenName" placeholder="e.g. random-test">
+                        <div class="name-hint" id="screenNameHint"></div>
+                    </div>
+                    <div class="input-group">
+                        <label>config.ts</label>
+                        <div class="storage-toggle">
+                            <label class="storage-option">
+                                <input type="radio" name="configLocation" value="repo" checked>
+                                <span>In repo (<code>tests/screens</code>)</span>
+                            </label>
+                            <label class="storage-option">
+                                <input type="radio" name="configLocation" value="custom">
+                                <span>Custom folder</span>
+                            </label>
+                        </div>
+                        <input type="text" id="configDir" placeholder="~/ocr-screens" style="display: none;">
+                    </div>
+                    <div class="input-group">
+                        <label>Images</label>
+                        <div class="storage-toggle">
+                            <label class="storage-option">
+                                <input type="radio" name="imagesLocation" value="same" checked>
+                                <span>Same as config</span>
+                            </label>
+                            <label class="storage-option">
+                                <input type="radio" name="imagesLocation" value="custom">
+                                <span>Different folder</span>
+                            </label>
+                        </div>
+                        <input type="text" id="imagesDir" placeholder="~/ocr-screens" style="display: none;">
+                    </div>
+                    <div class="path-preview" id="pathPreview">
+                        config.ts → tests/screens/…/config.ts<br>
+                        images → tests/screens/…
+                    </div>
+                    <div id="existingScreens" class="existing-screens"></div>
+                    <div id="saveResult" class="save-result"></div>
+                    <button class="btn btn-primary" id="saveToProject" disabled title="Start with npm run template-manager">
+                        💾 Export Screen
+                    </button>
+                    <button class="btn btn-secondary" id="downloadZip">
+                        📦 Download ZIP
+                    </button>
+                    <button class="btn btn-secondary" id="previewConfig">
+                        👁️ Preview Config
                     </button>
                     <button class="btn btn-danger" id="clearAll">
                         🗑️ Clear All
@@ -449,106 +589,336 @@
                 </div>
 
                 <div class="export-section" id="exportSection" style="display: none;">
-                    <h3>TypeScript Configuration</h3>
-                    <p style="font-size: 13px; color: #166534; margin-bottom: 10px;">
-                        Copy this into your test file:
-                    </p>
+                    <h3>Wrote screen files</h3>
+                    <p id="exportInstructions" style="font-size: 13px; color: #166534; margin-bottom: 10px;"></p>
                     <div class="code-block" id="codeBlock"></div>
-                    <button class="copy-btn" id="copyCode">📋 Copy Code</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // State
         let currentImage = null;
         let templates = JSON.parse(localStorage.getItem('templates') || '[]');
         let isDrawing = false;
         let startX, startY, currentX, currentY;
         let currentMode = 'create';
-        let selectionBox = null;
         let matchIndicators = [];
+        let apiBase = null;
+        let connectedScreens = [];
+        let defaultExternalDir = '';
 
-        // Elements
         const canvas = document.getElementById('imageCanvas');
         const ctx = canvas.getContext('2d');
         const canvasWrapper = document.getElementById('canvasWrapper');
         const noImage = document.getElementById('noImage');
         const imageUpload = document.getElementById('imageUpload');
         const elementNameInput = document.getElementById('elementName');
+        const elementNameHint = document.getElementById('elementNameHint');
         const elementTypeSelect = document.getElementById('elementType');
         const saveTemplateBtn = document.getElementById('saveTemplate');
         const clearSelectionBtn = document.getElementById('clearSelection');
         const templatesList = document.getElementById('templatesList');
         const exportSection = document.getElementById('exportSection');
         const codeBlock = document.getElementById('codeBlock');
+        const screenNameInput = document.getElementById('screenName');
+        const screenNameHint = document.getElementById('screenNameHint');
+        const pathPreview = document.getElementById('pathPreview');
+        const saveToProjectBtn = document.getElementById('saveToProject');
+        const saveResult = document.getElementById('saveResult');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const existingScreens = document.getElementById('existingScreens');
+        const configDirInput = document.getElementById('configDir');
+        const imagesDirInput = document.getElementById('imagesDir');
 
-        // Initialize
+        templates = templates.map((t) => ({
+            ...t,
+            name: sanitizeElementName(t.name) || t.name,
+        }));
+        localStorage.setItem('templates', JSON.stringify(templates));
+
+        screenNameInput.value = localStorage.getItem('screenName') || '';
+        configDirInput.value = localStorage.getItem('configDir') || '';
+        imagesDirInput.value = localStorage.getItem('imagesDir') || '';
+        const savedConfigLocation = localStorage.getItem('configLocation') || 'repo';
+        const savedImagesLocation = localStorage.getItem('imagesLocation') || 'same';
+        const configRadio = document.querySelector(`input[name="configLocation"][value="${savedConfigLocation}"]`);
+        const imagesRadio = document.querySelector(`input[name="imagesLocation"][value="${savedImagesLocation}"]`);
+        if (configRadio) configRadio.checked = true;
+        if (imagesRadio) imagesRadio.checked = true;
         renderTemplatesList();
+        updateStorageUi();
+        updateScreenPreview();
+        detectApi();
 
-        // Mode switching
-        document.querySelectorAll('.mode-btn').forEach(btn => {
+        function sanitizeElementName(raw) {
+            const s = String(raw ?? '').trim();
+            if (!s) return '';
+            if (/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(s)) return s;
+
+            const parts = s.split(/[^a-zA-Z0-9]+/).filter(Boolean);
+            let camel = parts.map((part, i) => {
+                if (i === 0) return part.charAt(0).toLowerCase() + part.slice(1);
+                return part.charAt(0).toUpperCase() + part.slice(1);
+            }).join('');
+            camel = camel.replace(/[^a-zA-Z0-9_$]/g, '');
+            if (!camel) return '';
+            if (/^[0-9]/.test(camel)) camel = 'el' + camel;
+            return camel;
+        }
+
+        function sanitizeScreenFolder(raw) {
+            return String(raw ?? '')
+                .trim()
+                .replace(/([a-z])([A-Z])/g, '$1-$2')
+                .replace(/[^a-zA-Z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .toLowerCase();
+        }
+
+        function screenExportName(folder) {
+            const parts = folder.split('-').filter(Boolean);
+            let camel = parts.map((part, i) => (
+                i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)
+            )).join('');
+            if (!camel) camel = 'my';
+            if (/^[0-9]/.test(camel)) camel = 'screen' + camel;
+            return camel + 'Screen';
+        }
+
+        function templateFilename(elementName) {
+            const kebab = elementName
+                .replace(/([a-z])([A-Z])/g, '$1-$2')
+                .replace(/[^a-zA-Z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .toLowerCase();
+            return kebab + '.png';
+        }
+
+        function titleCase(folder) {
+            return folder.split('-').filter(Boolean)
+                .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                .join(' ');
+        }
+
+        function canvasPoint(event) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (event.clientX - rect.left) * scaleX,
+                y: (event.clientY - rect.top) * scaleY,
+            };
+        }
+
+        function updateElementHint() {
+            const raw = elementNameInput.value;
+            const clean = sanitizeElementName(raw);
+            if (!raw.trim()) {
+                elementNameHint.textContent = '';
+                return;
+            }
+            if (!clean) {
+                elementNameHint.textContent = 'Use letters or numbers. Hyphens and spaces become camelCase.';
+                return;
+            }
+            elementNameHint.textContent = clean !== raw.trim()
+                ? `Will be saved as: ${clean}`
+                : '';
+        }
+
+        function selectedValue(name) {
+            return document.querySelector(`input[name="${name}"]:checked`)?.value;
+        }
+
+        function destinationSettings() {
+            return {
+                configLocation: selectedValue('configLocation') === 'custom' ? 'custom' : 'repo',
+                configDir: (configDirInput.value || defaultExternalDir || '~/ocr-screens').trim(),
+                imagesLocation: selectedValue('imagesLocation') === 'custom' ? 'custom' : 'same',
+                imagesDir: (imagesDirInput.value || defaultExternalDir || '~/ocr-screens').trim(),
+            };
+        }
+
+        function previewRoots() {
+            const settings = destinationSettings();
+            const configRoot = settings.configLocation === 'custom' ? settings.configDir.replace(/\/$/, '') : 'tests/screens';
+            const imagesRoot = settings.imagesLocation === 'custom' ? settings.imagesDir.replace(/\/$/, '') : configRoot;
+            return { configRoot, imagesRoot, split: configRoot !== imagesRoot };
+        }
+
+        function updateStorageUi() {
+            configDirInput.style.display = selectedValue('configLocation') === 'custom' ? 'block' : 'none';
+            imagesDirInput.style.display = selectedValue('imagesLocation') === 'custom' ? 'block' : 'none';
+            updateScreenPreview();
+        }
+
+        function updateScreenPreview() {
+            const folder = sanitizeScreenFolder(screenNameInput.value) || '…';
+            const { configRoot, imagesRoot } = previewRoots();
+            pathPreview.innerHTML =
+                `config.ts → ${configRoot}/${folder}/config.ts<br>images → ${imagesRoot}/${folder}/`;
+
+            const raw = screenNameInput.value.trim();
+            if (!raw) {
+                screenNameHint.textContent = 'Hyphens are kept in the folder name, not in the JS export.';
+            } else if (!sanitizeScreenFolder(raw)) {
+                screenNameHint.textContent = 'Enter a name with letters or numbers.';
+            } else if (raw !== sanitizeScreenFolder(raw)) {
+                screenNameHint.textContent = `Will be saved as folder: ${sanitizeScreenFolder(raw)}`;
+            } else {
+                screenNameHint.textContent = '';
+            }
+        }
+
+        elementNameInput.addEventListener('input', updateElementHint);
+        screenNameInput.addEventListener('input', () => {
+            localStorage.setItem('screenName', screenNameInput.value);
+            updateScreenPreview();
+        });
+        configDirInput.addEventListener('input', () => {
+            localStorage.setItem('configDir', configDirInput.value);
+            updateScreenPreview();
+        });
+        imagesDirInput.addEventListener('input', () => {
+            localStorage.setItem('imagesDir', imagesDirInput.value);
+            updateScreenPreview();
+        });
+        document.querySelectorAll('input[name="configLocation"], input[name="imagesLocation"]').forEach((input) => {
+            input.addEventListener('change', async () => {
+                localStorage.setItem('configLocation', selectedValue('configLocation'));
+                localStorage.setItem('imagesLocation', selectedValue('imagesLocation'));
+                updateStorageUi();
+                await persistSettings();
+            });
+        });
+        configDirInput.addEventListener('change', () => persistSettings());
+        imagesDirInput.addEventListener('change', () => persistSettings());
+
+        async function persistSettings() {
+            if (apiBase === null) return;
+            try {
+                const response = await fetch(`${apiBase}/api/settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(destinationSettings()),
+                });
+                if (!response.ok) return;
+                const data = await response.json();
+                applyStatus(data);
+            } catch {
+                // offline
+            }
+        }
+
+        function applyStatus(data) {
+            connectedScreens = data.screens || [];
+            defaultExternalDir = data.defaultExternalDir || '';
+            if (!configDirInput.value && defaultExternalDir) configDirInput.value = defaultExternalDir;
+            if (!imagesDirInput.value && defaultExternalDir) {
+                imagesDirInput.value = data.imagesLocation === 'custom' && data.imagesDirAbs
+                    ? data.imagesDirAbs
+                    : defaultExternalDir;
+            }
+            if (data.configLocation) {
+                const radio = document.querySelector(`input[name="configLocation"][value="${data.configLocation}"]`);
+                if (radio) radio.checked = true;
+                localStorage.setItem('configLocation', data.configLocation);
+            }
+            if (data.imagesLocation) {
+                const radio = document.querySelector(`input[name="imagesLocation"][value="${data.imagesLocation}"]`);
+                if (radio) radio.checked = true;
+                localStorage.setItem('imagesLocation', data.imagesLocation);
+            }
+            connectionStatus.textContent = data.split
+                ? `Connected · config ${data.configDir} · images ${data.imagesDir}`
+                : `Connected · ${data.configDir}`;
+            connectionStatus.classList.add('online');
+            saveToProjectBtn.disabled = false;
+            saveToProjectBtn.title = 'Write config.ts and images to the folders above';
+            renderExistingScreens();
+            updateStorageUi();
+        }
+
+        async function detectApi() {
+            const candidates = ['', 'http://localhost:8000', 'http://127.0.0.1:8000'];
+            for (const base of candidates) {
+                try {
+                    const response = await fetch(`${base}/api/status`);
+                    if (!response.ok) continue;
+                    const data = await response.json();
+                    if (!data.ok) continue;
+                    apiBase = base;
+                    applyStatus(data);
+                    return;
+                } catch {
+                    // try next
+                }
+            }
+            connectionStatus.textContent = 'Offline · zip download only';
+            connectionStatus.classList.remove('online');
+            saveToProjectBtn.disabled = true;
+            saveToProjectBtn.title = 'Run npm run template-manager to write files to disk';
+            if (!configDirInput.value) configDirInput.value = '~/ocr-screens';
+            if (!imagesDirInput.value) imagesDirInput.value = '~/ocr-screens';
+            updateStorageUi();
+        }
+
+        function renderExistingScreens() {
+            if (!connectedScreens.length) {
+                existingScreens.innerHTML = '';
+                return;
+            }
+            existingScreens.innerHTML = connectedScreens.map((screen) => (
+                `<span class="screen-tag">${screen.name}</span>`
+            )).join('');
+        }
+
+        document.querySelectorAll('.mode-btn').forEach((btn) => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.mode-btn').forEach((b) => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentMode = btn.dataset.mode;
-                
                 document.getElementById('createSection').style.display = currentMode === 'create' ? 'block' : 'none';
                 document.getElementById('testSection').style.display = currentMode === 'test' ? 'block' : 'none';
-                
                 clearMatchIndicators();
                 clearSelection();
             });
         });
 
-        // Image upload
         imageUpload.addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        currentImage = img;
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        ctx.drawImage(img, 0, 0);
-                        
-                        noImage.style.display = 'none';
-                        canvasWrapper.style.display = 'block';
-                    };
-                    img.src = event.target.result;
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    currentImage = img;
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    noImage.style.display = 'none';
+                    canvasWrapper.style.display = 'block';
                 };
-                reader.readAsDataURL(file);
-            }
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
         });
 
-        // Canvas drawing
         canvas.addEventListener('mousedown', (e) => {
             if (!currentImage || currentMode !== 'create') return;
-            
-            // Clear previous selection BEFORE setting new coordinates
             clearSelection();
-            
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            
-            startX = (e.clientX - rect.left) * scaleX;
-            startY = (e.clientY - rect.top) * scaleY;
-            currentX = startX;
-            currentY = startY;
+            const point = canvasPoint(e);
+            startX = currentX = point.x;
+            startY = currentY = point.y;
             isDrawing = true;
         });
 
         canvas.addEventListener('mousemove', (e) => {
             if (!isDrawing) return;
-            
-            const rect = canvas.getBoundingClientRect();
-            currentX = e.clientX - rect.left;
-            currentY = e.clientY - rect.top;
-            
+            const point = canvasPoint(e);
+            currentX = point.x;
+            currentY = point.y;
             drawSelection();
         });
 
@@ -559,15 +929,11 @@
         });
 
         function drawSelection() {
-            // Redraw image
             ctx.drawImage(currentImage, 0, 0);
-            
-            // Draw selection rectangle
             const x = Math.min(startX, currentX);
             const y = Math.min(startY, currentY);
             const width = Math.abs(currentX - startX);
             const height = Math.abs(currentY - startY);
-            
             ctx.strokeStyle = '#667eea';
             ctx.lineWidth = 2;
             ctx.strokeRect(x, y, width, height);
@@ -576,39 +942,42 @@
         }
 
         function clearSelection() {
-            if (currentImage) {
-                ctx.drawImage(currentImage, 0, 0);
-            }
+            if (currentImage) ctx.drawImage(currentImage, 0, 0);
             startX = startY = currentX = currentY = null;
             saveTemplateBtn.disabled = true;
         }
 
         clearSelectionBtn.addEventListener('click', clearSelection);
 
-        // Save template
         saveTemplateBtn.addEventListener('click', () => {
-            const name = elementNameInput.value.trim();
+            const name = sanitizeElementName(elementNameInput.value);
             const type = elementTypeSelect.value;
-            
+
             if (!name) {
-                alert('Please enter an element name');
+                alert('Enter an element name. Hyphens and spaces are converted to camelCase.');
                 return;
             }
-            
-            const x = Math.min(startX, currentX);
-            const y = Math.min(startY, currentY);
-            const width = Math.abs(currentX - startX);
-            const height = Math.abs(currentY - startY);
-            
-            // Extract template image data
+            if (templates.some((t) => t.name === name)) {
+                alert(`A template named "${name}" already exists.`);
+                return;
+            }
+
+            const x = Math.round(Math.min(startX, currentX));
+            const y = Math.round(Math.min(startY, currentY));
+            const width = Math.max(1, Math.round(Math.abs(currentX - startX)));
+            const height = Math.max(1, Math.round(Math.abs(currentY - startY)));
+
+            if (width < 4 || height < 4) {
+                alert('Selection is too small. Draw a larger box around the element.');
+                return;
+            }
+
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = width;
             tempCanvas.height = height;
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCtx.drawImage(currentImage, x, y, width, height, 0, 0, width, height);
-            const templateData = tempCanvas.toDataURL();
-            
-            const template = {
+            tempCanvas.getContext('2d').drawImage(currentImage, x, y, width, height, 0, 0, width, height);
+
+            templates.push({
                 id: Date.now(),
                 name,
                 type,
@@ -616,30 +985,25 @@
                 y,
                 width,
                 height,
-                imageData: templateData
-            };
-            
-            templates.push(template);
+                imageData: tempCanvas.toDataURL('image/png'),
+            });
             localStorage.setItem('templates', JSON.stringify(templates));
-            
             renderTemplatesList();
             clearSelection();
             elementNameInput.value = '';
-            
-            alert('Template saved!');
+            updateElementHint();
         });
 
-        // Render templates list
         function renderTemplatesList() {
             if (templates.length === 0) {
                 templatesList.innerHTML = '<p style="color: #999; font-size: 13px; text-align: center; padding: 20px;">No templates yet</p>';
                 return;
             }
-            
-            templatesList.innerHTML = templates.map(t => `
+
+            templatesList.innerHTML = templates.map((t) => `
                 <div class="template-item" data-id="${t.id}">
                     <div class="template-name">${t.name}</div>
-                    <div class="template-type">Type: ${t.type}</div>
+                    <div class="template-type">Type: ${t.type} · ${templateFilename(t.name)}</div>
                     <div class="template-location">Location: (${t.x}, ${t.y}) ${t.width}×${t.height}</div>
                     <div class="template-actions">
                         <button class="btn-test" onclick="testTemplate(${t.id})">Test</button>
@@ -649,78 +1013,74 @@
             `).join('');
         }
 
-        // Test template
         window.testTemplate = (id) => {
             if (!currentImage) {
                 alert('Please load an image first');
                 return;
             }
-            
-            const template = templates.find(t => t.id === id);
+            const template = templates.find((t) => t.id === id);
             if (!template) return;
-            
             clearMatchIndicators();
-            
-            // Simple template matching simulation
-            // In real implementation, this would use OpenCV.js
+
             const indicator = document.createElement('div');
             indicator.className = 'match-indicator';
             indicator.style.left = template.x + 'px';
             indicator.style.top = template.y + 'px';
             indicator.style.width = template.width + 'px';
             indicator.style.height = template.height + 'px';
-            
+
             const label = document.createElement('div');
             label.className = 'match-label';
-            label.textContent = template.name + ' (simulated match)';
+            label.textContent = template.name + ' (saved box)';
             label.style.left = template.x + 'px';
             label.style.top = (template.y - 25) + 'px';
-            
+
             canvasWrapper.appendChild(indicator);
             canvasWrapper.appendChild(label);
-            
             matchIndicators.push(indicator, label);
         };
 
-        // Test all templates
         document.getElementById('testAll').addEventListener('click', () => {
             if (!currentImage) {
                 alert('Please load an image first');
                 return;
             }
-            
             clearMatchIndicators();
-            templates.forEach(t => testTemplate(t.id));
+            templates.forEach((t) => testTemplate(t.id));
         });
 
         function clearMatchIndicators() {
-            matchIndicators.forEach(el => el.remove());
+            matchIndicators.forEach((el) => el.remove());
             matchIndicators = [];
         }
 
-        // Delete template
         window.deleteTemplate = (id) => {
             if (!confirm('Delete this template?')) return;
-            
-            templates = templates.filter(t => t.id !== id);
+            templates = templates.filter((t) => t.id !== id);
             localStorage.setItem('templates', JSON.stringify(templates));
             renderTemplatesList();
             clearMatchIndicators();
         };
 
-        // Export templates
-        document.getElementById('exportTemplates').addEventListener('click', () => {
-            const screenName = prompt('Enter screen name (e.g., login, checkout):', 'my-screen');
-            if (!screenName) return;
-            
-            const config = templates.map(t => ({
-                name: t.name,
-                template: `${t.name.toLowerCase().replace(/\s+/g, '-')}.png`,
-                type: t.type
-            }));
-            
-            // Generate screen config format
-            const code = `import { defineScreen } from '../../../src/screen-config.js';
+        function getScreenMeta() {
+            const folder = sanitizeScreenFolder(screenNameInput.value);
+            if (!folder) return null;
+            return { folder, exportName: screenExportName(folder), title: titleCase(folder) };
+        }
+
+        function generateConfig(meta) {
+            const elements = templates.map((t) =>
+                `    {\n      name: '${t.name}',\n      template: '${templateFilename(t.name)}',\n      type: ElementType.${t.type.toUpperCase()},\n    }`
+            ).join(',\n');
+            const split = previewRoots().split;
+            const screenImport = split
+                ? `import { defineScreen, screenAssetsDir } from '../../../src/screen-config.js';`
+                : `import { defineScreen } from '../../../src/screen-config.js';`;
+            const baseDirLine = split
+                ? `  baseDir: screenAssetsDir('${meta.folder}', __dirname),`
+                : `  baseDir: __dirname,`;
+
+            return `${screenImport}
 import { ElementType } from '../../../src/types.js';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -729,50 +1089,240 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * ${screenName.charAt(0).toUpperCase() + screenName.slice(1)} screen configuration
+ * ${meta.title} screen configuration
  */
-export const ${screenName}Screen = defineScreen({
-  name: '${screenName}',
-  baseDir: __dirname,
+export const ${meta.exportName} = defineScreen({
+  name: '${meta.folder}',
+${baseDirLine}
   elements: [
-${config.map(c => 
-    `    {\n      name: '${c.name}',\n      template: '${c.template}',\n      type: ElementType.${c.type.toUpperCase()},\n    }`
-).join(',\n')}
+${elements}
   ],
-});`;
-            
+});
+`;
+        }
+
+        function showConfig(code, extraNote) {
             codeBlock.textContent = code;
-            
-            // Update instructions
-            document.querySelector('.export-section h3').textContent = 'Screen Configuration';
-            document.querySelector('.export-section p').innerHTML = `
-                <strong>Next steps:</strong><br>
-                1. Create <code>tests/screens/${screenName}/</code> folder<br>
-                2. Save this as <code>config.ts</code> in that folder<br>
-                3. Place <code>blank.png</code> in the folder<br>
-                4. Save templates to <code>templates/</code> subfolder<br>
-                5. Import in tests: <code>import { ${screenName}Screen } from './screens/${screenName}/config.js';</code>
-            `;
-            
+            document.getElementById('exportInstructions').innerHTML = extraNote || '';
             exportSection.style.display = 'block';
             exportSection.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function blankPngDataUrl() {
+            if (!currentImage) return null;
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = currentImage.width;
+            exportCanvas.height = currentImage.height;
+            exportCanvas.getContext('2d').drawImage(currentImage, 0, 0);
+            return exportCanvas.toDataURL('image/png');
+        }
+
+        function buildExportPayload() {
+            const meta = getScreenMeta();
+            if (!meta) {
+                throw new Error('Enter a screen name. Hyphens are kept in the folder (random-test), not in the JS export (randomTestScreen).');
+            }
+            if (!templates.length) {
+                throw new Error('Save at least one template before exporting.');
+            }
+            const blankPng = blankPngDataUrl();
+            if (!blankPng) {
+                throw new Error('Load a blank form image before exporting.');
+            }
+            return {
+                meta,
+                configTs: generateConfig(meta),
+                blankPng,
+                templates: templates.map((t) => ({
+                    name: t.name,
+                    type: t.type,
+                    filename: templateFilename(t.name),
+                    dataUrl: t.imageData,
+                })),
+            };
+        }
+
+        function showSaveResult(ok, message) {
+            saveResult.className = 'save-result ' + (ok ? 'ok' : 'err');
+            saveResult.textContent = message;
+        }
+
+        function dataUrlToBytes(dataUrl) {
+            const base64 = dataUrl.split(',')[1];
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes;
+        }
+
+        function makeCrcTable() {
+            const table = new Uint32Array(256);
+            for (let i = 0; i < 256; i++) {
+                let c = i;
+                for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+                table[i] = c;
+            }
+            return table;
+        }
+        const CRC_TABLE = makeCrcTable();
+
+        function crc32(buf) {
+            let crc = 0 ^ (-1);
+            for (let i = 0; i < buf.length; i++) crc = (crc >>> 8) ^ CRC_TABLE[(crc ^ buf[i]) & 0xFF];
+            return (crc ^ (-1)) >>> 0;
+        }
+
+        function concatBytes(parts) {
+            const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+            let offset = 0;
+            for (const part of parts) {
+                out.set(part, offset);
+                offset += part.length;
+            }
+            return out;
+        }
+
+        function u16(n) {
+            return new Uint8Array([n & 0xff, (n >> 8) & 0xff]);
+        }
+
+        function u32(n) {
+            return new Uint8Array([n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >> 24) & 0xff]);
+        }
+
+        function createZip(files) {
+            const encoder = new TextEncoder();
+            const locals = [];
+            const centrals = [];
+            let offset = 0;
+
+            for (const file of files) {
+                const nameBytes = encoder.encode(file.path);
+                const data = file.data;
+                const crc = crc32(data);
+                const local = concatBytes([
+                    u32(0x04034b50), u16(20), u16(0), u16(0), u16(0), u16(0),
+                    u32(crc), u32(data.length), u32(data.length),
+                    u16(nameBytes.length), u16(0), nameBytes, data,
+                ]);
+                const central = concatBytes([
+                    u32(0x02014b50), u16(20), u16(20), u16(0), u16(0), u16(0), u16(0),
+                    u32(crc), u32(data.length), u32(data.length),
+                    u16(nameBytes.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset),
+                    nameBytes,
+                ]);
+                locals.push(local);
+                centrals.push(central);
+                offset += local.length;
+            }
+
+            const localBytes = concatBytes(locals);
+            const centralBytes = concatBytes(centrals);
+            const end = concatBytes([
+                u32(0x06054b50), u16(0), u16(0),
+                u16(files.length), u16(files.length),
+                u32(centralBytes.length), u32(localBytes.length), u16(0),
+            ]);
+            return new Blob([concatBytes([localBytes, centralBytes, end])], { type: 'application/zip' });
+        }
+
+        document.getElementById('previewConfig').addEventListener('click', () => {
+            try {
+                const payload = buildExportPayload();
+                const { configRoot, imagesRoot } = previewRoots();
+                showConfig(payload.configTs, `Would write <code>${configRoot}/${payload.meta.folder}/config.ts</code> and images to <code>${imagesRoot}/${payload.meta.folder}/</code>. Click Export Screen to create them.`);
+                showSaveResult(true, 'Preview only — files are not written until you export.');
+            } catch (err) {
+                showSaveResult(false, err.message);
+            }
         });
 
-        // Copy code
-        document.getElementById('copyCode').addEventListener('click', () => {
-            navigator.clipboard.writeText(codeBlock.textContent);
-            alert('Code copied to clipboard!');
+        document.getElementById('downloadZip').addEventListener('click', () => {
+            try {
+                const payload = buildExportPayload();
+                const root = payload.meta.folder;
+                const files = [
+                    { path: `${root}/config.ts`, data: new TextEncoder().encode(payload.configTs) },
+                    { path: `${root}/blank.png`, data: dataUrlToBytes(payload.blankPng) },
+                    ...payload.templates.map((t) => ({
+                        path: `${root}/templates/${t.filename}`,
+                        data: dataUrlToBytes(t.dataUrl),
+                    })),
+                ];
+                const blob = createZip(files);
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `${root}-screen.zip`;
+                link.click();
+                URL.revokeObjectURL(url);
+                showConfig(payload.configTs, `Downloaded <code>${root}-screen.zip</code>. Prefer Export Screen so files land in the folders above.`);
+                showSaveResult(true, `Downloaded ${root}-screen.zip`);
+            } catch (err) {
+                showSaveResult(false, err.message);
+            }
         });
 
-        // Clear all
+        async function saveToProject(overwrite = false) {
+            if (apiBase === null) {
+                showSaveResult(false, 'Start the manager with npm run template-manager so Export can write files.');
+                return;
+            }
+            let payload;
+            try {
+                payload = buildExportPayload();
+            } catch (err) {
+                showSaveResult(false, err.message);
+                return;
+            }
+
+            saveToProjectBtn.disabled = true;
+            try {
+                const response = await fetch(`${apiBase}/api/screens`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ...destinationSettings(),
+                        screenName: payload.meta.folder,
+                        overwrite,
+                        blankPng: payload.blankPng,
+                        templates: payload.templates,
+                    }),
+                });
+                const data = await response.json();
+                if (response.status === 409) {
+                    if (confirm(`Screen "${payload.meta.folder}" already exists. Overwrite the config and images?`)) {
+                        saveToProjectBtn.disabled = false;
+                        return saveToProject(true);
+                    }
+                    showSaveResult(false, 'Export cancelled. Existing files were not changed.');
+                    return;
+                }
+                if (!response.ok) {
+                    showSaveResult(false, data.error || 'Could not export screen.');
+                    return;
+                }
+                showConfig(data.configTs, `Wrote <code>${data.configPath}</code><br>Images: <code>${data.imagesPath}/</code>`);
+                showSaveResult(true, `Exported ${data.files.length} files.`);
+                await detectApi();
+            } catch (err) {
+                showSaveResult(false, err.message || 'Could not reach the template manager server.');
+            } finally {
+                saveToProjectBtn.disabled = apiBase === null;
+            }
+        }
+
+        saveToProjectBtn.addEventListener('click', () => saveToProject(false));
+
         document.getElementById('clearAll').addEventListener('click', () => {
             if (!confirm('Delete all templates? This cannot be undone.')) return;
-            
             templates = [];
             localStorage.setItem('templates', JSON.stringify(templates));
             renderTemplatesList();
             clearMatchIndicators();
             exportSection.style.display = 'none';
+            saveResult.className = 'save-result';
+            saveResult.textContent = '';
         });
     </script>
 </body>
