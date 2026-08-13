@@ -17,14 +17,28 @@ export enum ElementType {
 }
 
 /**
+ * Variant configuration for elements with multiple states
+ */
+export interface ElementVariant {
+  /** Path to template for this variant */
+  template: string;
+  
+  /** Optional: Additional metadata for this variant */
+  metadata?: Record<string, any>;
+}
+
+/**
  * Configuration for a single UI element to extract
  */
 export interface ElementConfig {
   /** Unique identifier for this element */
   name: string;
   
-  /** Path to the template image for this element */
-  templatePath: string;
+  /** Path to the template image for this element (if no variants) */
+  templatePath?: string | undefined;
+  
+  /** Variants of this element (e.g., enabled/disabled button) */
+  variants?: Record<string, ElementVariant> | undefined;
   
   /** Optional: Path to section template if element is within a specific section */
   sectionTemplatePath?: string | undefined;
@@ -57,6 +71,9 @@ export interface ElementResult {
   
   /** Type of element */
   type?: ElementType | undefined;
+  
+  /** Which variant matched (if element has variants) */
+  variant?: string | undefined;
 }
 
 /**

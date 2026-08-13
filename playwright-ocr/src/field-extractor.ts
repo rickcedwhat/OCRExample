@@ -7,13 +7,6 @@ import type { ElementConfig, ElementResult, ScreenComparison } from './types.js'
 export { ElementType };
 export type { ElementConfig, ElementResult, ScreenComparison };
 
-// Legacy exports for backward compatibility
-/** @deprecated Use ElementConfig instead */
-export type FieldConfig = ElementConfig;
-/** @deprecated Use ElementResult instead */
-export type FieldResult = ElementResult;
-/** @deprecated Use ScreenComparison instead */
-export type FormComparison = ScreenComparison;
 
 /**
  * Extracts UI element values from filled screens by comparing them to blank templates
@@ -89,20 +82,6 @@ export class FieldExtractor {
     };
   }
 
-  /**
-   * @deprecated Use extractElements instead
-   */
-  async extractFields(fieldConfigs: ElementConfig[]): Promise<ScreenComparison> {
-    const result = await this.extractElements(fieldConfigs);
-    // Add legacy fields property for backward compatibility
-    return {
-      ...result,
-      fields: result.elements,
-      totalFields: result.totalElements,
-      filledFields: result.filledElements,
-      emptyFields: result.emptyElements,
-    } as any;
-  }
 
   /**
    * Extract a single UI element value
@@ -112,7 +91,24 @@ export class FieldExtractor {
       throw new Error('Forms not loaded. Call loadForms() first.');
     }
 
-    const templateBuffer = await fs.readFile(config.templatePath);
+    // Handle single template or variants (for now, just use first variant or templatePath)
+    let templatePath = config.templatePath;
+    let activeVariant: string | undefined;
+    
+    if (!templatePath && config.variants) {
+      // Use first variant as default (TODO: try all variants and pick best match)
+      const firstVariant = Object.keys(config.variants)[0];
+      if (firstVariant && config.variants[firstVariant]) {
+        templatePath = config.variants[firstVariant].template;
+        activeVariant = firstVariant;
+      }
+    }
+    
+    if (!templatePath) {
+      throw new Error(`Element "${config.name}" has no templatePath or variants`);
+    }
+
+    const templateBuffer = await fs.readFile(templatePath);
     const template = this.visionUtil.toGrayscale(
       this.visionUtil.loadImage(templateBuffer)
     );
@@ -195,15 +191,10 @@ export class FieldExtractor {
       location: match.rect,
       isEmpty,
       type: config.type,
+      variant: activeVariant,
     };
   }
 
-  /**
-   * @deprecated Use extractElement instead
-   */
-  async extractField(config: ElementConfig): Promise<ElementResult> {
-    return this.extractElement(config);
-  }
 
   /**
    * Clean up OpenCV matrices

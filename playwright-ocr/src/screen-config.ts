@@ -1,4 +1,4 @@
-import type { ElementConfig, ScreenComparison } from './types.js';
+import type { ElementConfig, ScreenComparison, ElementType } from './types.js';
 import * as path from 'path';
 
 /**
@@ -29,8 +29,12 @@ export function defineScreen(config: {
   name: string;
   baseDir: string;
   blankScreen?: string;
-  elements: Array<Omit<ElementConfig, 'templatePath'> & { 
-    template: string;  // Just filename, not full path
+  elements: Array<{
+    name: string;
+    template?: string;  // For single-state elements
+    variants?: Record<string, { template: string }>;  // For multi-state elements
+    type?: ElementType;
+    sectionTemplatePath?: string;
   }>;
   debug?: boolean;
 }): ScreenConfig {
@@ -42,9 +46,20 @@ export function defineScreen(config: {
   const elementConfigs: ElementConfig[] = config.elements.map(el => {
     const elementConfig: ElementConfig = {
       name: el.name,
-      templatePath: path.join(config.baseDir, 'templates', el.template),
       type: el.type,
     };
+    
+    // Handle single template or variants
+    if (el.template) {
+      elementConfig.templatePath = path.join(config.baseDir, 'templates', el.template);
+    } else if (el.variants) {
+      elementConfig.variants = {};
+      for (const [variantName, variantConfig] of Object.entries(el.variants)) {
+        elementConfig.variants[variantName] = {
+          template: path.join(config.baseDir, 'templates', variantConfig.template),
+        };
+      }
+    }
     
     if (el.sectionTemplatePath) {
       elementConfig.sectionTemplatePath = el.sectionTemplatePath;

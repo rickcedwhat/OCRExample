@@ -1,6 +1,7 @@
 import type { Page, Locator } from '@playwright/test';
 import { FieldExtractor } from './field-extractor.js';
 import type { ElementConfig, ScreenComparison } from './field-extractor.js';
+import { ScreenResult } from './screen-result.js';
 import { getOCRUtil } from './utils/ocr.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -11,17 +12,12 @@ export interface ScreenTestOptions {
   debug?: boolean | undefined;
 }
 
-// Legacy type for backward compatibility
-/** @deprecated Use ScreenTestOptions instead */
-export interface PlaywrightFormTestOptions {
-  blankFormPath: string;
-  fieldConfigs: ElementConfig[];
-  debug?: boolean | undefined;
-}
 
 // Re-export types for convenience
 export type { ElementConfig, ElementResult, ScreenComparison } from './field-extractor.js';
 export { ElementType } from './field-extractor.js';
+export { ScreenResult } from './screen-result.js';
+export { ScreenElement } from './element.js';
 
 /**
  * Helper class for integrating form OCR testing with Playwright
@@ -61,49 +57,24 @@ export class PlaywrightFormTester {
 
   /**
    * Compare a filled screen screenshot against a blank template
-   * Returns extracted element values
+   * Returns Playwright-style screen result with chainable assertions
    */
   async compareScreen(
     filledScreenshot: string,
     options: ScreenTestOptions
-  ): Promise<ScreenComparison> {
+  ): Promise<ScreenResult> {
     const ocrUtil = await getOCRUtil();
     const extractor = new FieldExtractor(ocrUtil, options.debug);
 
     try {
       await extractor.loadForms(options.blankScreenPath, filledScreenshot);
-      const results = await extractor.extractElements(options.elementConfigs);
-      return results;
+      const comparison = await extractor.extractElements(options.elementConfigs);
+      return new ScreenResult(comparison, this.page);
     } finally {
       extractor.cleanup();
     }
   }
 
-  /**
-   * @deprecated Use compareScreen instead
-   */
-  async compareForm(
-    filledFormScreenshot: string,
-    options: PlaywrightFormTestOptions | ScreenTestOptions
-  ): Promise<ScreenComparison> {
-    // Support both old and new option formats
-    const screenOptions: ScreenTestOptions = {
-      blankScreenPath: (options as any).blankFormPath || (options as any).blankScreenPath,
-      elementConfigs: (options as any).fieldConfigs || (options as any).elementConfigs,
-      debug: options.debug || undefined,
-    };
-    
-    const result = await this.compareScreen(filledFormScreenshot, screenOptions);
-    
-    // Add legacy properties for backward compatibility
-    return {
-      ...result,
-      fields: result.elements,
-      totalFields: result.totalElements,
-      filledFields: result.filledElements,
-      emptyFields: result.emptyElements,
-    } as any;
-  }
 
   /**
    * Wait for a form to be stable (no animation/changes) before capturing
@@ -159,11 +130,12 @@ export class PlaywrightFormTester {
 
   /**
    * High-level test helper: Navigate, wait for stability, capture, and analyze
+   * Returns Playwright-style screen result with chainable assertions
    */
   async testScreen(
     navigationCallback: () => Promise<void>,
     options: ScreenTestOptions
-  ): Promise<ScreenComparison> {
+  ): Promise<ScreenResult> {
     await this.initialize();
     
     // Navigate to the screen
@@ -181,23 +153,6 @@ export class PlaywrightFormTester {
     return await this.compareScreen(screenshotPath, options);
   }
 
-  /**
-   * @deprecated Use testScreen instead
-   */
-  async testForm(
-    navigationCallback: () => Promise<void>,
-    options: PlaywrightFormTestOptions | ScreenTestOptions
-  ): Promise<any> {
-    const result = await this.testScreen(navigationCallback, options as ScreenTestOptions);
-    // Add legacy properties for backward compatibility
-    return {
-      ...result,
-      fields: result.elements,
-      totalFields: result.totalElements,
-      filledFields: result.filledElements,
-      emptyFields: result.emptyElements,
-    };
-  }
 
   /**
    * Clean up temporary screenshots
@@ -218,40 +173,23 @@ export class PlaywrightFormTester {
 
 /**
  * Convenience function for quick UI element extraction from a screenshot
+ * Returns Playwright-style screen result with chainable assertions
  */
 export async function extractScreenElements(
   filledScreenPath: string,
   blankScreenPath: string,
   elementConfigs: ElementConfig[],
   debug = false
-): Promise<ScreenComparison> {
+): Promise<ScreenResult> {
   const ocrUtil = await getOCRUtil();
   const extractor = new FieldExtractor(ocrUtil, debug);
 
   try {
     await extractor.loadForms(blankScreenPath, filledScreenPath);
-    return await extractor.extractElements(elementConfigs);
+    const comparison = await extractor.extractElements(elementConfigs);
+    return new ScreenResult(comparison);
   } finally {
     extractor.cleanup();
   }
 }
 
-/**
- * @deprecated Use extractScreenElements instead
- */
-export async function extractFormFields(
-  filledFormPath: string,
-  blankFormPath: string,
-  elementConfigs: ElementConfig[],
-  debug = false
-): Promise<any> {
-  const result = await extractScreenElements(filledFormPath, blankFormPath, elementConfigs, debug);
-  // Add legacy properties for backward compatibility
-  return {
-    ...result,
-    fields: result.elements,
-    totalFields: result.totalElements,
-    filledFields: result.filledElements,
-    emptyFields: result.emptyElements,
-  };
-}
