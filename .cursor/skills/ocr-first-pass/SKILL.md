@@ -11,3 +11,5 @@ description: Propose Playwright OCR field crops from blank and filled screenshot
 4. Assign `boxIds` only. Do not invent x/y.
 5. Write `tests/screens/<screen>/first-pass.json`.
 6. If asked to apply, crop from the blank using `expandLeftForLabel` + `insetRect` from `tools/detect-boxes.mjs` and replace `manager.json` / `config.ts` / `templates/`.
+
+Walkthrough of the Autosoft POC (match on blank, OCR the diff, shared-label `parts`): https://www.loom.com/share/c82b907ea9a04db1bc3d4983f61ab415

@@ -45,6 +45,9 @@ test.describe('Autosoft Customer Information', () => {
       await screen.element('workPhone').toHaveValue('760 987 4686');
       await screen.element('cellPhone').toBeEmpty();
       await screen.element('birthdate').toBeEmpty();
+      await screen.element('birthdate').part('month').toBeEmpty();
+      await screen.element('birthdate').part('day').toBeEmpty();
+      await screen.element('birthdate').part('year').toBeEmpty();
       await screen.element('address').toHaveValue('123 MAIN ST');
       await screen.element('cityState').part('city').toHaveValue('LOS ANGELES');
       await screen.element('cityState').part('state').toHaveValue('CA');
@@ -54,9 +57,7 @@ test.describe('Autosoft Customer Information', () => {
       });
 
       await screen.element('primaryContactMethod').toHaveValue('H - Home Phone');
-      await screen.element('customerTypeCode').toHaveValue('4', {
-        swaps: { '4': ['y'] },
-      });
+      await screen.element('customerTypeCode').toHaveValue('4');
       await screen.element('doNotCall').toBeUnchecked();
       await screen.element('doNotText').toBeUnchecked();
       await screen.element('doNotEmail').toBeUnchecked();
@@ -68,10 +69,16 @@ test.describe('Autosoft Customer Information', () => {
       await screen.element('licenseSt').toHaveValue('9QAW4567 CA');
       await screen.element('model').toHaveValue('ELANTRA GL');
       await screen.element('delivered').toHaveValue('10 25 23');
+      await screen.element('delivered').part('month').toHaveValue('10');
+      await screen.element('delivered').part('day').toHaveValue('25');
+      await screen.element('delivered').part('year').toHaveValue('23');
       await screen.element('body').toHaveValue('4DR');
       await screen.element('odometer').toHaveValue('20398');
       await screen.element('color').toHaveValue('WHITE');
       await screen.element('inService').toHaveValue('10 25 23');
+      await screen.element('inService').part('month').toHaveValue('10');
+      await screen.element('inService').part('day').toHaveValue('25');
+      await screen.element('inService').part('year').toHaveValue('23');
     } finally {
       extractor.cleanup();
     }

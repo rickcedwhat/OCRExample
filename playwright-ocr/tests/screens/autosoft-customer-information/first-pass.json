@@ -3,6 +3,7 @@
   "notes": [
     "Assigned OpenCV boxes from boxes.json. Crops are those rectangles plus the label to the left.",
     "Name row is first / middle / last (boxes 8, 9, 10). On this filled shot the last slot shows SEARCH.",
+    "Birthdate is three detected boxes. Delivered and In Service are one OpenCV box each (slashes merge the cells); parts split that box into month/day/year.",
     "Box 24 looks like an empty wide row (Name underline) and was skipped."
   ],
   "unknowns": [
@@ -66,9 +67,9 @@
       "section": null,
       "boxIds": [21, 22, 23],
       "parts": [
-        { "name": "birthMonth", "boxId": 21 },
-        { "name": "birthDay", "boxId": 22 },
-        { "name": "birthYear", "boxId": 23 }
+        { "name": "month", "boxId": 21 },
+        { "name": "day", "boxId": 22 },
+        { "name": "year", "boxId": 23 }
       ]
     },
     { "name": "address", "type": "field", "section": null, "boxIds": [26] },
@@ -104,10 +105,14 @@
       ]
     },
     { "name": "model", "type": "field", "section": null, "boxIds": [51] },
-    { "name": "delivered", "type": "field", "section": null, "boxIds": [52] },
+    { "name": "delivered", "type": "field", "section": null, "boxIds": [52], "parts": [
+      { "name": "month" }, { "name": "day" }, { "name": "year" }
+    ]},
     { "name": "body", "type": "field", "section": null, "boxIds": [54] },
     { "name": "odometer", "type": "field", "section": null, "boxIds": [55] },
     { "name": "color", "type": "field", "section": null, "boxIds": [58] },
-    { "name": "inService", "type": "field", "section": null, "boxIds": [59] }
+    { "name": "inService", "type": "field", "section": null, "boxIds": [59], "parts": [
+      { "name": "month" }, { "name": "day" }, { "name": "year" }
+    ]}
   ]
 }

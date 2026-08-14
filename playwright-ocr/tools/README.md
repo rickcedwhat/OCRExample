@@ -122,3 +122,7 @@ Run `npm run template-manager` and use http://localhost:8000 — not a `file://`
 **Tests cannot find blank.png**
 
 If images are in a custom folder, confirm `<images-dir>/<screen>/blank.png` exists, or set `OCR_SCREENS_DIR` to that parent folder.
+
+## Walkthrough
+
+POC for AI OCR form field testing (Autosoft Customer Information): https://www.loom.com/share/c82b907ea9a04db1bc3d4983f61ab415

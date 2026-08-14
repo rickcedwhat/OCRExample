@@ -68,6 +68,12 @@ export const autosoftCustomerInformationScreen = defineScreen({
       name: 'birthdate',
       template: 'birthdate.png',
       type: ElementType.FIELD,
+      charset: 'digits',
+      parts: [
+        { name: 'month', x: 60, y: 4, width: 18, height: 14 },
+        { name: 'day', x: 84, y: 4, width: 18, height: 14 },
+        { name: 'year', x: 108, y: 4, width: 18, height: 14 },
+      ],
     },
     {
       name: 'address',
@@ -105,6 +111,7 @@ export const autosoftCustomerInformationScreen = defineScreen({
       name: 'customerTypeCode',
       template: 'customer-type-code.png',
       type: ElementType.FIELD,
+      charset: 'digits',
     },
     {
       name: 'doNotCall',
@@ -155,6 +162,12 @@ export const autosoftCustomerInformationScreen = defineScreen({
       name: 'delivered',
       template: 'delivered.png',
       type: ElementType.FIELD,
+      charset: 'digits',
+      parts: [
+        { name: 'month', x: 82, y: 4, width: 18, height: 14 },
+        { name: 'day', x: 112, y: 4, width: 18, height: 14 },
+        { name: 'year', x: 142, y: 4, width: 18, height: 14 },
+      ],
     },
     {
       name: 'body',
@@ -175,6 +188,12 @@ export const autosoftCustomerInformationScreen = defineScreen({
       name: 'inService',
       template: 'in-service.png',
       type: ElementType.FIELD,
+      charset: 'digits',
+      parts: [
+        { name: 'month', x: 114, y: 4, width: 18, height: 14 },
+        { name: 'day', x: 144, y: 4, width: 18, height: 14 },
+        { name: 'year', x: 174, y: 4, width: 18, height: 14 },
+      ],
     }
   ],
 });
