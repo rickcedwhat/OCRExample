@@ -58,8 +58,10 @@ export function applyFirstPass(screenDir) {
   const elements = [];
   for (const el of pass.elements || []) {
     const fieldBoxes = (el.boxIds || []).map((id) => byId.get(id)).filter(Boolean);
-    if (!fieldBoxes.length) continue;
-    const crop = expandLeftForLabel(boxes, fieldBoxes);
+    const crop = fieldBoxes.length
+      ? expandLeftForLabel(boxes, fieldBoxes)
+      : el.crop;
+    if (!crop) continue;
     const filename = `${kebab(el.name)}.png`;
     fs.writeFileSync(path.join(tmplDir, filename), cropPng(blank, crop.x, crop.y, crop.width, crop.height));
     const parts = (el.parts || []).map((part) => {
@@ -76,7 +78,9 @@ export function applyFirstPass(screenDir) {
       width: crop.width,
       height: crop.height,
       boxIds: el.boxIds,
-      ocrRect: ocrRectFromBoxes(crop, fieldBoxes, el.type || 'field'),
+      charset: el.charset,
+      options: el.options,
+      ocrRect: fieldBoxes.length ? ocrRectFromBoxes(crop, fieldBoxes, el.type || 'field') : undefined,
       parts: parts.length ? parts : undefined,
     });
   }
@@ -95,6 +99,11 @@ export function applyFirstPass(screenDir) {
       `      template: '${el.filename}'`,
       `      type: ElementType.${type}`,
     ];
+    if (el.charset) block.push(`      charset: '${el.charset}'`);
+    if (el.options?.length) {
+      const optionLines = el.options.map((opt) => `        '${String(opt).replace(/'/g, "\\'")}'`).join(',\n');
+      block.push(`      options: [\n${optionLines},\n      ]`);
+    }
     if (el.parts?.length) {
       const partLines = el.parts.map((part) =>
         `        { name: '${part.name}', x: ${part.x}, y: ${part.y}, width: ${part.width}, height: ${part.height} }`

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>playwright-ocr</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #111;
+      color: #ddd;
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      font-weight: 650;
+      color: #fff;
+    }
+    .lede {
+      margin: 0 0 32px;
+      color: #9a9a9a;
+    }
+    h2 {
+      margin: 28px 0 10px;
+      font-size: 11px;
+      font-weight: 650;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #7a7a7a;
+    }
+    .grid {
+      display: grid;
+      gap: 8px;
+    }
+    a.card,
+    .card {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: #1c1c1c;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    a.card:hover {
+      border-color: #3d3d3d;
+      background: #222;
+    }
+    .card strong {
+      display: block;
+      color: #fff;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .card span {
+      color: #8a8a8a;
+      font-size: 13px;
+    }
+    .card code {
+      font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #6ea8fe;
+    }
+    a.card video,
+    .card video {
+      display: block;
+      width: 100%;
+      margin-top: 10px;
+      background: #000;
+      border-radius: 4px;
+    }
+    .muted { color: #8a8a8a; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>playwright-ocr</h1>
+    <p class="lede">Local fixture, screen configs, and Template Manager.</p>
+
+    <h2>App</h2>
+    <div class="grid">
+      <a class="card" href="/app/login.html">
+        <strong>Sign In</strong>
+        <span>Blank login window. Username <code>qawolf</code> / password <code>secret</code>.</span>
+      </a>
+      <a class="card" href="/app/customer.html">
+        <strong>Customer Information</strong>
+        <span>Filled only after Sign In sets the session.</span>
+      </a>
+    </div>
+
+    <h2>Source</h2>
+    <div class="grid">
+      <a class="card" href="/app/config.html">
+        <strong>config.ts &amp; spec</strong>
+        <span>Login and customer screens, plus the Stage 1 Playwright test.</span>
+      </a>
+    </div>
+
+    <h2>Last run</h2>
+    <div class="grid" id="last-run">
+      <p class="muted">Run <code>npm run test:html</code> to capture video and a Playwright trace.</p>
+    </div>
+
+    <h2>Tools</h2>
+    <div class="grid">
+      <a class="card" href="/template-manager.html">
+        <strong>Template Manager</strong>
+        <span>Crop fields, export <code>config.ts</code>, test OCR on the diff.</span>
+      </a>
+    </div>
+  </div>
+  <script>
+    (async () => {
+      const root = document.getElementById('last-run');
+      try {
+        const res = await fetch('/api/artifacts');
+        const data = await res.json();
+        if (!data.video && !data.trace) return;
+        const when = data.updatedAt
+          ? new Date(data.updatedAt).toLocaleString()
+          : '';
+        const traceHref = data.trace
+          ? `/trace-viewer/index.html?trace=${encodeURIComponent(location.origin + data.trace)}`
+          : '';
+        root.innerHTML = `
+          ${data.video ? `<div class="card">
+            <strong>Video</strong>
+            <span>${data.title}${when ? ` · ${when}` : ''}</span>
+            <video src="${data.video}" controls playsinline></video>
+          </div>` : ''}
+          ${data.trace ? `<a class="card" href="${traceHref}">
+            <strong>Trace</strong>
+            <span>Open the Playwright trace for this run.</span>
+          </a>` : ''}
+        `;
+      } catch {
+        root.innerHTML = '<p class="muted">Could not load artifacts.</p>';
+      }
+    })();
+  </script>
+</body>
+</html>

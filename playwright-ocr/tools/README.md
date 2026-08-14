@@ -10,7 +10,19 @@ By default everything lands in `tests/screens/<screen-name>/`. You can point `co
 npm run template-manager
 ```
 
-Opens http://localhost:8000.
+Opens http://localhost:8000 — a hub with links to the fixture, source, and Template Manager.
+
+- http://localhost:8000/app/login.html
+- http://localhost:8000/app/customer.html
+- http://localhost:8000/app/config.html
+- http://localhost:8000/template-manager.html
+
+Stage 1 Playwright spec (locator login → OCR username → `element('signIn').click()` → OCR customer number + Active checkbox):
+
+```bash
+npx playwright test tests/html-login-ocr.spec.ts
+npm run test:html   # same test, then copies video + trace to artifacts/ for the hub
+```
 
 1. Load a blank screenshot (and a filled one in Test).
 2. For a first pass, run `node tools/detect-boxes.mjs tests/screens/<screen>` then ask the agent to follow `tools/ai-first-pass-prompt.md`. The model assigns names to detected box IDs; it does not guess coordinates.
@@ -117,7 +129,7 @@ const results = await formTester.compareScreen(screenshot, autosoftCustomerInfor
 
 **Export is disabled**
 
-Run `npm run template-manager` and use http://localhost:8000 — not a `file://` tab.
+Run `npm run template-manager` and use http://localhost:8000/template-manager.html — not a `file://` tab.
 
 **Tests cannot find blank.png**
 

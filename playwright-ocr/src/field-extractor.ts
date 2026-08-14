@@ -48,6 +48,7 @@ export class FieldExtractor {
    * Load and prepare the blank and filled form images
    */
   async loadForms(blankFormPath: string, filledFormPath: string): Promise<void> {
+    this.cleanup();
     const blankBuffer = await fs.readFile(blankFormPath);
     const filledBuffer = await fs.readFile(filledFormPath);
 
@@ -246,6 +247,7 @@ export class FieldExtractor {
           value: read.value,
           confidence: match.confidence,
           location: partRect,
+          ocrLocation: partRect,
           isEmpty: read.isEmpty,
           type: config.type,
         });
@@ -279,6 +281,7 @@ export class FieldExtractor {
       value,
       confidence: match.confidence,
       location: match.rect,
+      ocrLocation: readRect,
       isEmpty,
       type: config.type,
       variant: activeVariant,
@@ -319,6 +322,58 @@ export class FieldExtractor {
     return { value, isEmpty };
   }
 
+  /**
+   * Match an element's template against a live screenshot (no blank alignment).
+   * Uses the label portion when ocrRect is set so filled values do not tank confidence.
+   */
+  async locateOnScreenshot(screenshotPath: string, config: ElementConfig): Promise<ElementResult> {
+    if (!config.templatePath) {
+      throw new Error(`Element "${config.name}" has no templatePath`);
+    }
+
+    const shotColor = this.visionUtil.loadImage(await fs.readFile(screenshotPath));
+    const shotGray = this.visionUtil.toGrayscale(shotColor);
+    shotColor.delete();
+
+    const templateColor = this.visionUtil.loadImage(await fs.readFile(config.templatePath));
+    const template = this.visionUtil.toGrayscale(templateColor);
+    templateColor.delete();
+
+    let needle = template;
+    const labelWidth = config.ocrRect?.x;
+    if (labelWidth !== undefined && labelWidth >= 8 && labelWidth < template.cols) {
+      needle = this.visionUtil.extractROI(template, {
+        x: 0,
+        y: 0,
+        width: labelWidth,
+        height: template.rows,
+      });
+    }
+
+    let match: MatchResult;
+    try {
+      match = this.visionUtil.matchTemplate(shotGray, needle);
+    } catch {
+      match = {
+        location: { x: 0, y: 0 },
+        confidence: 0,
+        rect: { x: 0, y: 0, width: 0, height: 0 },
+      };
+    }
+
+    if (needle !== template) needle.delete();
+    template.delete();
+    shotGray.delete();
+
+    return {
+      name: config.name,
+      value: '',
+      confidence: match.confidence,
+      location: match.rect,
+      isEmpty: true,
+      type: config.type,
+    };
+  }
 
   /**
    * Extract element using custom matcher function
@@ -404,6 +459,7 @@ export class FieldExtractor {
       value: customResult.value,
       confidence: customResult.confidence,
       location: match.rect,
+      ocrLocation: match.rect,
       isEmpty: customResult.isEmpty,
       type: config.type,
       metadata: customResult.metadata,

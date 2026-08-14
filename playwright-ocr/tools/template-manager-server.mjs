@@ -19,6 +19,8 @@ const TOOLS_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(TOOLS_DIR, '..');
 const REPO_SCREENS_DIR = path.join(PROJECT_ROOT, 'tests', 'screens');
 const HTML_FILE = path.join(TOOLS_DIR, 'template-manager.html');
+const INDEX_FILE = path.join(TOOLS_DIR, 'index.html');
+const APP_DIR = path.join(PROJECT_ROOT, 'fixtures', 'customer-information');
 const SETTINGS_FILE = path.join(os.homedir(), '.playwright-ocr-screens.json');
 const DEFAULT_EXTERNAL_DIR = path.join(os.homedir(), 'ocr-screens');
 const MAX_BODY_BYTES = 50 * 1024 * 1024;
@@ -878,12 +880,133 @@ function writeScreen(payload) {
   };
 }
 
-function serveHtml(res) {
-  if (!fs.existsSync(HTML_FILE)) {
-    sendText(res, 500, 'template-manager.html is missing.');
+function serveHtml(res, filePath, missing) {
+  if (!fs.existsSync(filePath)) {
+    sendText(res, 500, missing);
     return;
   }
-  sendText(res, 200, fs.readFileSync(HTML_FILE), 'text/html; charset=utf-8');
+  sendText(res, 200, fs.readFileSync(filePath), 'text/html; charset=utf-8');
+}
+
+const APP_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webm': 'video/webm',
+  '.zip': 'application/zip',
+  '.webmanifest': 'application/manifest+json',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.map': 'application/json',
+};
+
+const ARTIFACTS_DIR = path.join(PROJECT_ROOT, 'artifacts');
+const TRACE_VIEWER_DIR = path.join(PROJECT_ROOT, 'node_modules', 'playwright-core', 'lib', 'vite', 'traceViewer');
+
+const SOURCE_FILES = {
+  test: path.join(PROJECT_ROOT, 'tests', 'html-login-ocr.spec.ts'),
+  'html-login': path.join(PROJECT_ROOT, 'tests', 'screens', 'html-login', 'config.ts'),
+  'html-customer-information': path.join(PROJECT_ROOT, 'tests', 'screens', 'html-customer-information', 'config.ts'),
+};
+
+function loadSource(rawKey) {
+  const filePath = SOURCE_FILES[String(rawKey ?? '')];
+  if (!filePath) {
+    return { status: 404, body: { error: 'Unknown source file.' } };
+  }
+  if (!fs.existsSync(filePath)) {
+    return { status: 404, body: { error: `${displayPath(filePath)} was not found.` } };
+  }
+  return {
+    status: 200,
+    body: {
+      ok: true,
+      path: displayPath(filePath),
+      source: fs.readFileSync(filePath, 'utf8'),
+    },
+  };
+}
+
+function serveStatic(res, root, pathname, prefix) {
+  const relative = decodeURIComponent(pathname.replace(prefix, ''));
+  const target = path.normalize(path.join(root, relative || 'index.html'));
+  try {
+    assertInsideRoot(root, target);
+  } catch {
+    sendText(res, 403, 'Forbidden');
+    return;
+  }
+  if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+    sendText(res, 404, 'Not found');
+    return;
+  }
+  const type = APP_TYPES[path.extname(target).toLowerCase()] || 'application/octet-stream';
+  const body = fs.readFileSync(target);
+  res.writeHead(200, {
+    'Content-Type': type,
+    'Content-Length': body.length,
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+    'Access-Control-Allow-Origin': '*',
+  });
+  res.end(body);
+}
+
+function artifactPayload() {
+  const video = path.join(ARTIFACTS_DIR, 'html-fixture', 'video.webm');
+  const trace = path.join(ARTIFACTS_DIR, 'html-fixture', 'trace.zip');
+  const hasVideo = fs.existsSync(video);
+  const hasTrace = fs.existsSync(trace);
+  const stamp = hasVideo || hasTrace
+    ? new Date(Math.max(
+      hasVideo ? fs.statSync(video).mtimeMs : 0,
+      hasTrace ? fs.statSync(trace).mtimeMs : 0,
+    )).toISOString()
+    : null;
+  return {
+    ok: true,
+    title: 'Stage 1 spec',
+    updatedAt: stamp,
+    video: hasVideo ? '/artifacts/html-fixture/video.webm' : null,
+    trace: hasTrace ? '/artifacts/html-fixture/trace.zip' : null,
+  };
+}
+
+function serveApp(res, pathname) {
+  const relative = pathname.replace(/^\/app\/?/, '');
+  const target = path.normalize(path.join(APP_DIR, relative || 'login.html'));
+  if (!target.startsWith(APP_DIR)) {
+    sendText(res, 403, 'Forbidden');
+    return;
+  }
+  if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+    sendText(res, 404, 'Not found');
+    return;
+  }
+  const type = APP_TYPES[path.extname(target).toLowerCase()] || 'application/octet-stream';
+  sendText(res, 200, fs.readFileSync(target), type);
+}
+
+function serveScreenAsset(res, pathname) {
+  const relative = decodeURIComponent(pathname.replace(/^\/screens\/?/, ''));
+  const target = path.normalize(path.join(REPO_SCREENS_DIR, relative));
+  try {
+    assertInsideRoot(REPO_SCREENS_DIR, target);
+  } catch {
+    sendText(res, 403, 'Forbidden');
+    return;
+  }
+  if (path.extname(target).toLowerCase() !== '.png') {
+    sendText(res, 403, 'Forbidden');
+    return;
+  }
+  if (!fs.existsSync(target) || !fs.statSync(target).isFile()) {
+    sendText(res, 404, 'Not found');
+    return;
+  }
+  sendText(res, 200, fs.readFileSync(target), 'image/png');
 }
 
 async function handle(req, res) {
@@ -899,8 +1022,44 @@ async function handle(req, res) {
     return;
   }
 
-  if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/template-manager.html')) {
-    serveHtml(res);
+  if (req.method === 'GET' && url.pathname === '/') {
+    serveHtml(res, INDEX_FILE, 'index.html is missing.');
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/template-manager.html') {
+    serveHtml(res, HTML_FILE, 'template-manager.html is missing.');
+    return;
+  }
+
+  if (req.method === 'GET' && (url.pathname === '/app' || url.pathname.startsWith('/app/'))) {
+    serveApp(res, url.pathname);
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/screens/')) {
+    serveScreenAsset(res, url.pathname);
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/artifacts/')) {
+    serveStatic(res, ARTIFACTS_DIR, url.pathname, /^\/artifacts\/?/);
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname.startsWith('/trace-viewer/')) {
+    serveStatic(res, TRACE_VIEWER_DIR, url.pathname, /^\/trace-viewer\/?/);
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/artifacts') {
+    sendJson(res, 200, artifactPayload());
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/source') {
+    const result = loadSource(url.searchParams.get('file'));
+    sendJson(res, result.status, result.body);
     return;
   }
 
@@ -1016,6 +1175,7 @@ async function handle(req, res) {
 }
 
 function openBrowser(url) {
+  if (process.env.OCR_OPEN === '0' || process.env.CI) return;
   const command = process.platform === 'darwin'
     ? `open "${url}"`
     : process.platform === 'win32'
@@ -1044,7 +1204,11 @@ function listen(port) {
   server.listen(port, () => {
     const dest = destinations(loadSettings());
     const url = `http://localhost:${port}/`;
-    console.log(`Template Manager: ${url}`);
+    console.log(`Hub:              ${url}`);
+    console.log(`Template Manager: ${url}template-manager.html`);
+    console.log(`App login:        ${url}app/login.html`);
+    console.log(`App customer:     ${url}app/customer.html`);
+    console.log(`App source:       ${url}app/config.html`);
     console.log(`config.ts → ${dest.configRoot}`);
     console.log(`images    → ${dest.imagesRoot}`);
     openBrowser(url);

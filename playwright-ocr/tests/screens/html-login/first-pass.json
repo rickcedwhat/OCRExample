@@ -1,0 +1,17 @@
+{
+  "screen": { "name": "html-login", "width": 1280, "height": 800 },
+  "notes": ["Login dialog on the local fixture. Sign In is a button crop (not an OpenCV input box)."],
+  "unknowns": [],
+  "sections": [],
+  "elements": [
+    { "name": "username", "type": "field", "section": null, "boxIds": [1] },
+    { "name": "password", "type": "field", "section": null, "boxIds": [2] },
+    {
+      "name": "signIn",
+      "type": "button",
+      "section": null,
+      "boxIds": [],
+      "crop": { "x": 716, "y": 210, "width": 88, "height": 24 }
+    }
+  ]
+}

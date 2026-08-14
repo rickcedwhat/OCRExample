@@ -33,6 +33,7 @@
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "template-manager": "node tools/template-manager-server.mjs",
+    "test:html": "playwright test tests/html-login-ocr.spec.ts && node tools/publish-test-artifacts.mjs",
     "prepare": "npm run build"
   },
   "keywords": [

@@ -162,6 +162,9 @@ export interface ElementResult {
   
   /** Location of the element on screen */
   location: Rect;
+
+  /** Value box in screen space (label crop stays on `location`). Used by fill(). */
+  ocrLocation?: Rect | undefined;
   
   /** Whether the element is in its empty/default state */
   isEmpty: boolean;

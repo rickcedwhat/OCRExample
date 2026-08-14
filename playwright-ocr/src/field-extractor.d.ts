@@ -42,6 +42,14 @@ export declare class FieldExtractor {
      */
     extractField(config: FieldConfig): Promise<FieldResult>;
     /**
+     * Match an element's template against a live screenshot (no blank alignment).
+     */
+    locateOnScreenshot(screenshotPath: string, config: FieldConfig & {
+        ocrRect?: Rect;
+        type?: string;
+        templatePath?: string;
+    }): Promise<FieldResult>;
+    /**
      * Clean up OpenCV matrices
      */
     cleanup(): void;

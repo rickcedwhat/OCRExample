@@ -1,0 +1,93 @@
+{
+  "screen": { "name": "html-customer-information", "width": 1280, "height": 800 },
+  "notes": [
+    "Local HTML fixture. Boxes from detect-boxes.mjs on a 1280x800 screenshot.",
+    "Name, city/state, phone, and dates use parts. Checkboxes are the 15x15 boxes."
+  ],
+  "unknowns": [],
+  "sections": [],
+  "elements": [
+    { "name": "customerNumber", "type": "field", "section": null, "boxIds": [1] },
+    { "name": "vin", "type": "field", "section": null, "boxIds": [2], "charset": "vin" },
+    {
+      "name": "name",
+      "type": "field",
+      "section": null,
+      "boxIds": [3, 4, 5],
+      "parts": [
+        { "name": "firstName", "boxId": 3 },
+        { "name": "middleInitial", "boxId": 4 },
+        { "name": "lastName", "boxId": 5 }
+      ]
+    },
+    {
+      "name": "homePhone",
+      "type": "field",
+      "section": null,
+      "boxIds": [6, 7, 8],
+      "parts": [
+        { "name": "area", "boxId": 6 },
+        { "name": "prefix", "boxId": 7 },
+        { "name": "line", "boxId": 8 }
+      ],
+      "charset": "digits"
+    },
+    { "name": "address", "type": "field", "section": null, "boxIds": [9] },
+    {
+      "name": "birthdate",
+      "type": "field",
+      "section": null,
+      "boxIds": [10, 11, 12],
+      "parts": [
+        { "name": "month", "boxId": 10 },
+        { "name": "day", "boxId": 11 },
+        { "name": "year", "boxId": 12 }
+      ],
+      "charset": "digits"
+    },
+    {
+      "name": "cityState",
+      "type": "field",
+      "section": null,
+      "boxIds": [13, 14, 15],
+      "parts": [
+        { "name": "city", "boxId": 13 },
+        { "name": "state", "boxId": 14 },
+        { "name": "zip", "boxId": 15 }
+      ]
+    },
+    {
+      "name": "primaryContactMethod",
+      "type": "dropdown",
+      "section": null,
+      "boxIds": [16],
+      "options": [
+        "H - Home Phone",
+        "W - Work Phone",
+        "C - Cell",
+        "E - Email"
+      ]
+    },
+    { "name": "email", "type": "field", "section": null, "boxIds": [17], "charset": "email" },
+    { "name": "active", "type": "checkbox", "section": null, "boxIds": [18] },
+    { "name": "stockNo", "type": "field", "section": null, "boxIds": [19] },
+    {
+      "name": "delivered",
+      "type": "field",
+      "section": null,
+      "boxIds": [20, 21, 22],
+      "parts": [
+        { "name": "month", "boxId": 20 },
+        { "name": "day", "boxId": 21 },
+        { "name": "year", "boxId": 22 }
+      ],
+      "charset": "digits"
+    },
+    { "name": "year", "type": "field", "section": null, "boxIds": [23], "charset": "digits" },
+    { "name": "odometer", "type": "field", "section": null, "boxIds": [24], "charset": "digits" },
+    { "name": "make", "type": "field", "section": null, "boxIds": [25] },
+    { "name": "color", "type": "field", "section": null, "boxIds": [26] },
+    { "name": "model", "type": "field", "section": null, "boxIds": [27] },
+    { "name": "doNotCall", "type": "checkbox", "section": null, "boxIds": [28] }
+  ]
+}

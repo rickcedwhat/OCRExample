@@ -24,7 +24,7 @@ export type {
 export { ElementType } from './field-extractor.js';
 export { ScreenResult } from './screen-result.js';
 export { ScreenElement } from './element.js';
-export type { HaveTextOptions } from './element.js';
+export type { HaveTextOptions, WaitForOptions } from './element.js';
 export { ocrTextMatches } from './utils/ocr.js';
 export type { OcrSwaps } from './utils/ocr.js';
 export { defineScreen, screenAssetsDir } from './screen-config.js';
