@@ -88,10 +88,103 @@ export class VisionUtil {
         return diff;
     }
     /**
+     * Keep filled-form pixels that changed vs blank; paint unchanged pixels white.
+     */
+    isolateChangedForOcr(filled, blank, threshold = 50) {
+        const filledCopy = filled.clone();
+        const blankCopy = blank.clone();
+        if (filledCopy.rows !== blankCopy.rows || filledCopy.cols !== blankCopy.cols) {
+            blankCopy.delete();
+            return filledCopy;
+        }
+        const result = filledCopy.clone();
+        const filledData = filledCopy.data;
+        const blankData = blankCopy.data;
+        const out = result.data;
+        for (let i = 0; i < filledData.length; i++) {
+            out[i] = Math.abs(filledData[i] - blankData[i]) <= threshold ? 255 : filledData[i];
+        }
+        filledCopy.delete();
+        blankCopy.delete();
+        return result;
+    }
+    countDarkPixels(image, limit = 200) {
+        let gray = image;
+        let allocatedGray = false;
+        if (image.channels() > 1) {
+            gray = this.toGrayscale(image);
+            allocatedGray = true;
+        }
+        let dark = 0;
+        const data = gray.data;
+        for (let i = 0; i < data.length; i++) {
+            if (data[i] < limit)
+                dark += 1;
+        }
+        if (allocatedGray)
+            gray.delete();
+        return dark;
+    }
+    hasEnoughInk(image, minPixels = 8) {
+        return this.countDarkPixels(image) >= minPixels;
+    }
+    ocrPrepOptions(image, options = {}) {
+        const rows = image.rows ?? 0;
+        let scale = 3;
+        let threshold;
+        if (options.charset?.includes('@')) {
+            scale = 3;
+        }
+        else if (rows <= 24) {
+            scale = 4;
+            threshold = 200;
+        }
+        if (options.scale && options.scale >= 2 && options.scale <= 8)
+            scale = options.scale;
+        return threshold == null ? { scale } : { scale, threshold };
+    }
+    /**
+     * Upscale, pad, and binarize a crop so Tesseract can read 18px UI text.
+     * Short crops use a fixed threshold — Otsu on tiny digits fattens 0 into 8.
+     */
+    prepareForOcr(image, scale, options = {}) {
+        let gray = image;
+        let allocatedGray = false;
+        if (image.channels() > 1) {
+            gray = this.toGrayscale(image);
+            allocatedGray = true;
+        }
+        const auto = this.ocrPrepOptions(gray, options);
+        const usedScale = scale ?? auto.scale;
+        const threshold = options.threshold ?? auto.threshold;
+        const scaled = new cv.Mat();
+        cv.resize(gray, scaled, new cv.Size(Math.max(1, gray.cols * usedScale), Math.max(1, gray.rows * usedScale)), 0, 0, cv.INTER_CUBIC);
+        if (allocatedGray)
+            gray.delete();
+        const padded = new cv.Mat();
+        cv.copyMakeBorder(scaled, padded, 16, 16, 16, 16, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255));
+        scaled.delete();
+        const binary = new cv.Mat();
+        if (typeof threshold === 'number') {
+            cv.threshold(padded, binary, threshold, 255, cv.THRESH_BINARY);
+        }
+        else {
+            cv.threshold(padded, binary, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+        }
+        padded.delete();
+        return binary;
+    }
+    /**
      * Align two images using feature detection and homography
      * This corrects for rotation, skew, and perspective differences
      */
     alignImages(filledForm, blankForm) {
+        if (filledForm.rows === blankForm.rows && filledForm.cols === blankForm.cols) {
+            return filledForm.clone();
+        }
+        if (typeof cv.SIFT !== 'function') {
+            throw new Error('Filled and blank screenshots differ in size, and this OpenCV build cannot align them. Capture both at the same resolution.');
+        }
         // Detect SIFT features
         const sift = new cv.SIFT();
         const filledKeypoints = new cv.KeyPointVector();
@@ -148,11 +241,31 @@ export class VisionUtil {
      * Convert a cv.Mat to a PNG buffer
      */
     matToBuffer(mat) {
-        const png = new PNG({
-            width: mat.cols,
-            height: mat.rows,
-        });
-        png.data = Buffer.from(mat.data);
+        const width = mat.cols;
+        const height = mat.rows;
+        const png = new PNG({ width, height });
+        const src = mat.data;
+        const pixels = width * height;
+        if (src.length >= pixels * 4) {
+            png.data.set(src.subarray(0, pixels * 4));
+        }
+        else if (src.length >= pixels * 3) {
+            for (let i = 0; i < pixels; i++) {
+                png.data[i * 4] = src[i * 3] ?? 0;
+                png.data[i * 4 + 1] = src[i * 3 + 1] ?? 0;
+                png.data[i * 4 + 2] = src[i * 3 + 2] ?? 0;
+                png.data[i * 4 + 3] = 255;
+            }
+        }
+        else {
+            for (let i = 0; i < pixels; i++) {
+                const value = src[i] ?? 0;
+                png.data[i * 4] = value;
+                png.data[i * 4 + 1] = value;
+                png.data[i * 4 + 2] = value;
+                png.data[i * 4 + 3] = 255;
+            }
+        }
         return PNG.sync.write(png);
     }
     /**

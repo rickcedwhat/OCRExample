@@ -1,0 +1,113 @@
+{
+  "screen": { "name": "autosoft-customer-information", "width": 1288, "height": 804 },
+  "notes": [
+    "Assigned OpenCV boxes from boxes.json. Crops are those rectangles plus the label to the left.",
+    "Name row is first / middle / last (boxes 8, 9, 10). On this filled shot the last slot shows SEARCH.",
+    "Box 24 looks like an empty wide row (Name underline) and was skipped."
+  ],
+  "unknowns": [
+    "Individual checkbox was not detected as its own rectangle.",
+    "No filled example with Individual unchecked."
+  ],
+  "sections": [],
+  "elements": [
+    { "name": "customerNumber", "type": "field", "section": null, "boxIds": [4] },
+    { "name": "last8", "type": "field", "section": null, "boxIds": [5] },
+    { "name": "vin", "type": "field", "section": null, "boxIds": [6] },
+    { "name": "activeInactive", "type": "checkbox", "section": null, "boxIds": [7] },
+    {
+      "name": "name",
+      "type": "field",
+      "section": null,
+      "boxIds": [8, 9, 10],
+      "parts": [
+        { "name": "firstName", "boxId": 8 },
+        { "name": "middleInitial", "boxId": 9 },
+        { "name": "lastName", "boxId": 10 }
+      ]
+    },
+    { "name": "search", "type": "field", "section": null, "boxIds": [10] },
+    {
+      "name": "homePhone",
+      "type": "field",
+      "section": null,
+      "boxIds": [11, 12, 13],
+      "parts": [
+        { "name": "homeArea", "boxId": 11 },
+        { "name": "homePrefix", "boxId": 12 },
+        { "name": "homeLine", "boxId": 13 }
+      ]
+    },
+    {
+      "name": "workPhone",
+      "type": "field",
+      "section": null,
+      "boxIds": [14, 15, 16],
+      "parts": [
+        { "name": "workArea", "boxId": 14 },
+        { "name": "workPrefix", "boxId": 15 },
+        { "name": "workLine", "boxId": 16 }
+      ]
+    },
+    {
+      "name": "cellPhone",
+      "type": "field",
+      "section": null,
+      "boxIds": [18, 19, 20],
+      "parts": [
+        { "name": "cellArea", "boxId": 18 },
+        { "name": "cellPrefix", "boxId": 19 },
+        { "name": "cellLine", "boxId": 20 }
+      ]
+    },
+    {
+      "name": "birthdate",
+      "type": "field",
+      "section": null,
+      "boxIds": [21, 22, 23],
+      "parts": [
+        { "name": "birthMonth", "boxId": 21 },
+        { "name": "birthDay", "boxId": 22 },
+        { "name": "birthYear", "boxId": 23 }
+      ]
+    },
+    { "name": "address", "type": "field", "section": null, "boxIds": [26] },
+    {
+      "name": "cityState",
+      "type": "field",
+      "section": null,
+      "boxIds": [28, 29, 30],
+      "parts": [
+        { "name": "city", "boxId": 28 },
+        { "name": "state", "boxId": 29 },
+        { "name": "zip", "boxId": 30 }
+      ]
+    },
+    { "name": "email", "type": "field", "section": null, "boxIds": [32] },
+    { "name": "primaryContactMethod", "type": "dropdown", "section": null, "boxIds": [33] },
+    { "name": "customerTypeCode", "type": "field", "section": null, "boxIds": [36] },
+    { "name": "doNotCall", "type": "checkbox", "section": null, "boxIds": [37] },
+    { "name": "doNotText", "type": "checkbox", "section": null, "boxIds": [38] },
+    { "name": "doNotEmail", "type": "checkbox", "section": null, "boxIds": [39] },
+    { "name": "marketingLetter", "type": "checkbox", "section": null, "boxIds": [40] },
+    { "name": "stockNo", "type": "field", "section": null, "boxIds": [41] },
+    { "name": "year", "type": "field", "section": null, "boxIds": [42] },
+    { "name": "make", "type": "field", "section": null, "boxIds": [46] },
+    {
+      "name": "licenseSt",
+      "type": "field",
+      "section": null,
+      "boxIds": [47, 48],
+      "parts": [
+        { "name": "license", "boxId": 47 },
+        { "name": "licenseState", "boxId": 48 }
+      ]
+    },
+    { "name": "model", "type": "field", "section": null, "boxIds": [51] },
+    { "name": "delivered", "type": "field", "section": null, "boxIds": [52] },
+    { "name": "body", "type": "field", "section": null, "boxIds": [54] },
+    { "name": "odometer", "type": "field", "section": null, "boxIds": [55] },
+    { "name": "color", "type": "field", "section": null, "boxIds": [58] },
+    { "name": "inService", "type": "field", "section": null, "boxIds": [59] }
+  ]
+}

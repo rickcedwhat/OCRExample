@@ -1,11 +1,29 @@
 import { VisionUtil } from './utils/vision.js';
 import type { Rect, MatchResult } from './utils/vision.js';
-import { OCRUtil } from './utils/ocr.js';
+import { OCRUtil, charsetForField, pickFromOptions } from './utils/ocr.js';
 import * as fs from 'fs/promises';
 import { ElementType } from './types.js';
 import type { ElementConfig, ElementResult, ScreenComparison } from './types.js';
+import { relativePartRect } from './screen-config.js';
 export { ElementType };
 export type { ElementConfig, ElementResult, ScreenComparison };
+
+function offsetRect(
+  base: Rect,
+  inner: Rect | undefined,
+  maxWidth: number,
+  maxHeight: number,
+): Rect {
+  if (!inner) return base;
+  const x = Math.max(0, Math.round(base.x + inner.x));
+  const y = Math.max(0, Math.round(base.y + inner.y));
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.min(Math.round(inner.width), maxWidth - x)),
+    height: Math.max(1, Math.min(Math.round(inner.height), maxHeight - y)),
+  };
+}
 
 
 /**
@@ -59,7 +77,10 @@ export class FieldExtractor {
   /**
    * Extract values from multiple UI elements
    */
-  async extractElements(elementConfigs: readonly ElementConfig[] | ElementConfig[]): Promise<ScreenComparison> {
+  async extractElements(
+    elementConfigs: readonly ElementConfig[] | ElementConfig[],
+    options: { ocrThreshold?: number } = {},
+  ): Promise<ScreenComparison> {
     if (!this.blankForm || !this.filledForm) {
       throw new Error('Forms not loaded. Call loadForms() first.');
     }
@@ -67,7 +88,7 @@ export class FieldExtractor {
     const results: ElementResult[] = [];
 
     for (const config of elementConfigs) {
-      const result = await this.extractElement(config);
+      const result = await this.extractElement(config, options);
       results.push(result);
     }
 
@@ -86,7 +107,10 @@ export class FieldExtractor {
   /**
    * Extract a single UI element value
    */
-  async extractElement(config: ElementConfig): Promise<ElementResult> {
+  async extractElement(
+    config: ElementConfig,
+    options: { ocrThreshold?: number } = {},
+  ): Promise<ElementResult> {
     if (!this.blankForm || !this.filledForm) {
       throw new Error('Forms not loaded. Call loadForms() first.');
     }
@@ -133,10 +157,22 @@ export class FieldExtractor {
         sectionTemplate
       );
 
-      sourceBlank = this.visionUtil.extractROI(this.blankForm, sectionMatch.rect);
-      sourceFilled = this.visionUtil.extractROI(this.filledForm, sectionMatch.rect);
-
+      const sectionBlank = this.visionUtil.extractROI(this.blankForm, sectionMatch.rect);
+      const sectionFilled = this.visionUtil.extractROI(this.filledForm, sectionMatch.rect);
       sectionTemplate.delete();
+
+      if (sectionBlank.rows >= template.rows && sectionBlank.cols >= template.cols) {
+        sourceBlank = sectionBlank;
+        sourceFilled = sectionFilled;
+      } else {
+        sectionBlank.delete();
+        sectionFilled.delete();
+        if (this.debug) {
+          console.log(
+            `Element "${config.name}" template does not fit in its section; matching on the full screen.`,
+          );
+        }
+      }
     }
 
     // Find the field location using template matching on the blank form
@@ -150,9 +186,9 @@ export class FieldExtractor {
       }
     }
 
-    // Extract the ROI from the filled form
-    const filledROI = this.visionUtil.extractROI(sourceFilled, match.rect);
-    const blankROI = template;
+    const readRect = offsetRect(match.rect, config.ocrRect, sourceFilled.cols, sourceFilled.rows);
+    const filledROI = this.visionUtil.extractROI(sourceFilled, readRect);
+    const blankROI = this.visionUtil.extractROI(sourceBlank, readRect);
 
     // Compare the regions to detect if the element has been filled
     // For animated elements, use looser thresholds since pixels are constantly changing
@@ -176,38 +212,67 @@ export class FieldExtractor {
 
     let value = '';
     let isEmpty = !comparison.different;
-
-    // Support both new type property and legacy isCheckbox
+    let parts: ElementResult[] | undefined;
     const isCheckbox = config.type === 'checkbox' || config.isCheckbox;
 
-    if (comparison.different) {
-      if (isCheckbox) {
-        value = 'checked';
-      } else if (config.animated) {
-        // For animated elements, don't try OCR - just mark as visible/present
-        value = 'visible';
-        isEmpty = false;
-      } else {
-        // Extract text using OCR on the difference
-        const diffImage = this.visionUtil.createDiffImage(filledROI, blankROI, 90);
-        const diffBuffer = this.visionUtil.matToBuffer(diffImage);
-        value = await this.ocrUtil.extractText(diffBuffer);
-        diffImage.delete();
-
-        if (!value || value.trim() === '') {
-          isEmpty = true;
-        }
-      }
-    } else if (isCheckbox) {
-      value = 'unchecked';
+    if (isCheckbox) {
+      value = comparison.different ? 'checked' : 'unchecked';
+      isEmpty = false;
     } else if (config.animated) {
-      // Animated element not present
-      value = 'hidden';
-      isEmpty = true;
+      value = comparison.different ? 'visible' : 'hidden';
+      isEmpty = !comparison.different;
+    } else if (config.parts?.length) {
+      const ocrThreshold = options.ocrThreshold ?? 50;
+      parts = [];
+      for (const part of config.parts) {
+        const partRect = offsetRect(
+          match.rect,
+          relativePartRect(part, match.rect),
+          sourceFilled.cols,
+          sourceFilled.rows,
+        );
+        const read = await this.readChangedText(
+          sourceFilled,
+          sourceBlank,
+          partRect,
+          part.name,
+          config.type,
+          part.charset || config.charset,
+          undefined,
+          ocrThreshold,
+        );
+        parts.push({
+          name: part.name,
+          value: read.value,
+          confidence: match.confidence,
+          location: partRect,
+          isEmpty: read.isEmpty,
+          type: config.type,
+        });
+      }
+      value = parts.map((part) => part.value).filter((text) => text.trim()).join(' ');
+      isEmpty = parts.every((part) => part.isEmpty);
+    } else {
+      const ocrThreshold = options.ocrThreshold ?? 50;
+      const read = await this.readChangedText(
+        sourceFilled,
+        sourceBlank,
+        readRect,
+        config.name,
+        config.type,
+        config.charset,
+        config.options,
+        ocrThreshold,
+      );
+      value = read.value;
+      isEmpty = read.isEmpty;
     }
 
     filledROI.delete();
+    blankROI.delete();
     template.delete();
+    if (sourceBlank !== this.blankForm) sourceBlank.delete();
+    if (sourceFilled !== this.filledForm) sourceFilled.delete();
 
     return {
       name: config.name,
@@ -217,7 +282,41 @@ export class FieldExtractor {
       isEmpty,
       type: config.type,
       variant: activeVariant,
+      parts,
     };
+  }
+
+  private async readChangedText(
+    sourceFilled: any,
+    sourceBlank: any,
+    readRect: Rect,
+    name: string,
+    type: ElementConfig['type'],
+    charsetPreset: string | undefined,
+    options: string[] | undefined,
+    ocrThreshold: number,
+  ): Promise<{ value: string; isEmpty: boolean }> {
+    const filledROI = this.visionUtil.extractROI(sourceFilled, readRect);
+    const blankROI = this.visionUtil.extractROI(sourceBlank, readRect);
+    const ocrImage = this.visionUtil.isolateChangedForOcr(filledROI, blankROI, ocrThreshold);
+    let value = '';
+    let isEmpty = true;
+    if (this.visionUtil.hasEnoughInk(ocrImage, 3)) {
+      const charset = charsetForField(name, type, charsetPreset);
+      const prep = this.visionUtil.ocrPrepOptions(ocrImage, { charset });
+      const prepared = this.visionUtil.prepareForOcr(ocrImage, prep.scale, { ...prep, charset });
+      const ocrBuffer = this.visionUtil.matToBuffer(prepared);
+      value = pickFromOptions(
+        await this.ocrUtil.extractText(ocrBuffer, { charset }),
+        options,
+      );
+      prepared.delete();
+      isEmpty = !value.trim();
+    }
+    ocrImage.delete();
+    filledROI.delete();
+    blankROI.delete();
+    return { value, isEmpty };
   }
 
 
@@ -268,9 +367,8 @@ export class FieldExtractor {
       console.log(`Element "${config.name}" (custom matcher) confidence:`, match.confidence);
     }
 
-    // Extract ROIs
     const filledROI = this.visionUtil.extractROI(sourceFilled!, match.rect);
-    const blankROI = template;
+    const blankROI = this.visionUtil.extractROI(sourceBlank!, match.rect);
 
     // Build context for custom matcher
     const context: import('./types.js').CustomMatcherContext = {
@@ -282,6 +380,8 @@ export class FieldExtractor {
       utils: {
         createDiffImage: (roi1: any, roi2: any, threshold = 80) => 
           this.visionUtil.createDiffImage(roi1, roi2, threshold),
+        isolateChangedForOcr: (filled: any, blank: any, threshold = 50) =>
+          this.visionUtil.isolateChangedForOcr(filled, blank, threshold),
         matToBuffer: (mat: any) => 
           this.visionUtil.matToBuffer(mat),
         compareRegions: (roi1: any, roi2: any, threshold = 80, minDiffPixels = 10) => 
@@ -292,9 +392,11 @@ export class FieldExtractor {
     // Call custom matcher
     const customResult = await config.customMatcher(context);
 
-    // Clean up
     filledROI.delete();
+    blankROI.delete();
     template.delete();
+    if (sourceBlank !== this.blankForm) sourceBlank!.delete();
+    if (sourceFilled !== this.filledForm) sourceFilled!.delete();
 
     // Return result with custom matcher output + metadata
     return {

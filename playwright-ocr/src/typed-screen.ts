@@ -82,12 +82,17 @@ export function defineTypedScreen<
       }
     }
 
-    if (el.sectionTemplatePath) {
+    if ('section' in el && el.section) {
+      elementConfig.sectionTemplatePath = path.join(config.baseDir, 'templates', el.section as string);
+    } else if (el.sectionTemplatePath) {
       elementConfig.sectionTemplatePath = el.sectionTemplatePath;
     }
     
     if ('animated' in el && el.animated) {
       elementConfig.animated = el.animated;
+    }
+    if ('options' in el && Array.isArray(el.options) && el.options.length) {
+      elementConfig.options = el.options;
     }
 
     return elementConfig;

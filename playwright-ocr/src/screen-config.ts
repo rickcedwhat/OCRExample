@@ -1,4 +1,4 @@
-import type { ElementConfig, ScreenComparison, ElementType } from './types.js';
+import type { ElementConfig, FieldPart, Rect, ScreenComparison, ElementType } from './types.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -37,6 +37,19 @@ function readExternalScreensRoot(): string | undefined {
     return undefined;
   }
   return undefined;
+}
+
+/** Authoring sometimes stores parts in screen space; runtime wants crop-relative (like ocrRect). */
+export function relativePartRect(part: Rect, crop: Rect): Rect {
+  if (part.x >= crop.x && part.y >= crop.y) {
+    return {
+      x: part.x - crop.x,
+      y: part.y - crop.y,
+      width: part.width,
+      height: part.height,
+    };
+  }
+  return { x: part.x, y: part.y, width: part.width, height: part.height };
 }
 
 /**
@@ -88,7 +101,12 @@ export function defineScreen(config: {
     template?: string;  // For single-state elements
     variants?: Record<string, { template: string }>;  // For multi-state elements
     type?: ElementType;
+    section?: string;  // Filename in templates/, locates a parent region first
     sectionTemplatePath?: string;
+    options?: string[];
+    ocrRect?: { x: number; y: number; width: number; height: number };
+    charset?: string;
+    parts?: FieldPart[];
   }>;
   debug?: boolean;
 }): ScreenConfig {
@@ -115,8 +133,22 @@ export function defineScreen(config: {
       }
     }
     
-    if (el.sectionTemplatePath) {
+    if (el.section) {
+      elementConfig.sectionTemplatePath = path.join(config.baseDir, 'templates', el.section);
+    } else if (el.sectionTemplatePath) {
       elementConfig.sectionTemplatePath = el.sectionTemplatePath;
+    }
+    if (el.options?.length) {
+      elementConfig.options = el.options;
+    }
+    if (el.ocrRect) {
+      elementConfig.ocrRect = el.ocrRect;
+    }
+    if (el.charset) {
+      elementConfig.charset = el.charset;
+    }
+    if (el.parts?.length) {
+      elementConfig.parts = el.parts;
     }
     
     return elementConfig;
@@ -136,6 +168,48 @@ export function defineScreen(config: {
     screenConfig.debug = config.debug;
   }
   
+  const managerPath = path.join(config.baseDir, 'manager.json');
+  if (fs.existsSync(managerPath)) {
+    try {
+      const manager = JSON.parse(fs.readFileSync(managerPath, 'utf8')) as {
+        elements?: Array<{
+          name?: string;
+          x?: number;
+          y?: number;
+          width?: number;
+          height?: number;
+          ocrRect?: ElementConfig['ocrRect'];
+          options?: string[];
+          charset?: string;
+          parts?: FieldPart[];
+        }>;
+      };
+      const extra = new Map((manager.elements || []).map((row) => [row.name, row]));
+      for (const el of elementConfigs) {
+        const row = extra.get(el.name);
+        if (!row) continue;
+        if (!el.ocrRect && row.ocrRect) el.ocrRect = row.ocrRect;
+        if (!el.options?.length && row.options?.length) el.options = row.options;
+        if (!el.charset && row.charset) el.charset = row.charset;
+        if (!el.parts?.length && row.parts?.length) {
+          const crop = {
+            x: row.x ?? 0,
+            y: row.y ?? 0,
+            width: row.width ?? 0,
+            height: row.height ?? 0,
+          };
+          el.parts = row.parts.map((part) => ({
+            name: part.name,
+            charset: part.charset,
+            ...relativePartRect(part, crop),
+          }));
+        }
+      }
+    } catch {
+      // manager.json is optional authoring metadata
+    }
+  }
+
   return screenConfig;
 }
 

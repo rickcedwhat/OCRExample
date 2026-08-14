@@ -1,17 +1,26 @@
+export declare const CHARSET_PRESETS: Record<string, string>;
+export declare function charsetForField(name?: string, type?: string, preset?: string): string | undefined;
+export declare function normalizeOcrText(text: string): string;
+export declare function pickFromOptions(text: string, options?: string[]): string;
+export type OcrSwaps = Record<string, string | readonly string[]>;
+export declare function ocrTextMatches(actual: string, expected: string | RegExp, options?: {
+    swaps?: OcrSwaps;
+    exact?: boolean;
+}): boolean;
 /**
  * OCR utility for extracting text from images using Tesseract.js
  */
 export declare class OCRUtil {
     private worker;
-    private initialized;
-    /**
-     * Initialize the OCR worker
-     */
+    private language;
     initialize(language?: string): Promise<void>;
     /**
      * Extract text from an image buffer
      */
-    extractText(imageBuffer: Buffer): Promise<string>;
+    extractText(imageBuffer: Buffer, options?: {
+        charset?: string;
+        psm?: string;
+    }): Promise<string>;
     /**
      * Extract text with confidence scores and bounding boxes
      */

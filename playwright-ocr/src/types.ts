@@ -50,6 +50,9 @@ export interface CustomMatcherContext {
   utils: {
     /** Create difference image between two regions */
     createDiffImage: (roi1: any, roi2: any, threshold?: number) => any;
+
+    /** Keep filled pixels that changed vs blank; unchanged pixels become white */
+    isolateChangedForOcr: (filled: any, blank: any, threshold?: number) => any;
     
     /** Convert Mat to buffer for OCR */
     matToBuffer: (mat: any) => Buffer;
@@ -121,6 +124,27 @@ export interface ElementConfig {
   
   /** Deprecated: Use type: ElementType.CHECKBOX instead */
   isCheckbox?: boolean | undefined;
+
+  /** Optional dropdown choices. When set, OCR is snapped to the closest option. */
+  options?: string[] | undefined;
+
+  /** Value box inside the match crop (label stays in the template, OCR reads this). */
+  ocrRect?: Rect | undefined;
+
+  /** Character whitelist preset: auto, text, digits, alnum, email, vin. */
+  charset?: string | undefined;
+
+  /**
+   * Inner boxes to OCR separately after one parent match.
+   * Rects are relative to the match crop (same space as ocrRect).
+   */
+  parts?: FieldPart[] | undefined;
+}
+
+/** One inner value box on a shared-label row (name, city/state, phones). */
+export interface FieldPart extends Rect {
+  name: string;
+  charset?: string | undefined;
 }
 
 /**
@@ -150,6 +174,9 @@ export interface ElementResult {
   
   /** Custom metadata from custom matcher (e.g., { percentage: 47 }) */
   metadata?: Record<string, any> | undefined;
+
+  /** Per-box OCR when the element was authored with parts. */
+  parts?: ElementResult[] | undefined;
 }
 
 /**

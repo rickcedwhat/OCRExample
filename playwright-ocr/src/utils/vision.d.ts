@@ -47,6 +47,20 @@ export declare class VisionUtil {
      * Create a difference image highlighting where two images differ
      */
     createDiffImage(image1: any, image2: any, threshold?: number): any;
+    isolateChangedForOcr(filled: any, blank: any, threshold?: number): any;
+    countDarkPixels(image: any, limit?: number): number;
+    hasEnoughInk(image: any, minPixels?: number): boolean;
+    ocrPrepOptions(image: any, options?: {
+        charset?: string;
+        scale?: number;
+    }): {
+        scale: number;
+        threshold?: number;
+    };
+    prepareForOcr(image: any, scale?: number, options?: {
+        threshold?: number;
+        charset?: string;
+    }): any;
     /**
      * Align two images using feature detection and homography
      * This corrects for rotation, skew, and perspective differences

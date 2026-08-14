@@ -1,45 +1,158 @@
 import { createWorker } from 'tesseract.js';
 import type { Worker } from 'tesseract.js';
 
+const UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const LOWER = UPPER.toLowerCase();
+const DIGITS = '0123456789';
+
+export const CHARSET_PRESETS: Record<string, string> = {
+  text: `${UPPER}${LOWER}${DIGITS} ./ -`,
+  digits: `${DIGITS} / `,
+  alnum: `${UPPER}${LOWER}${DIGITS}`,
+  email: `${UPPER}${LOWER}${DIGITS}@._-`,
+  vin: `${UPPER}${LOWER}${DIGITS}`,
+};
+
+export function charsetForField(name = '', type = '', preset = 'auto'): string | undefined {
+  if (type === 'checkbox') return undefined;
+  if (preset && preset !== 'auto' && CHARSET_PRESETS[preset]) return CHARSET_PRESETS[preset];
+  const key = `${name} ${type}`.toLowerCase();
+  if (key.includes('email')) return CHARSET_PRESETS.email;
+  if (key.includes('vin')) return CHARSET_PRESETS.vin;
+  if (key.includes('contact') && key.includes('method')) return CHARSET_PRESETS.text;
+  if (key.includes('phone') || key.includes('odometer') || key.includes('year') || key.includes('zip')) {
+    return CHARSET_PRESETS.digits;
+  }
+  return CHARSET_PRESETS.text;
+}
+
+export function normalizeOcrText(text: string): string {
+  return String(text ?? '').replace(/\n+/g, ' ').trim();
+}
+
+export function pickFromOptions(text: string, options?: string[]): string {
+  if (!text || !options?.length) return text;
+  const compact = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const tokens = (value: string) => value.toUpperCase().match(/[A-Z0-9]+/g) || [];
+  const got = compact(text);
+  const gotTokens = tokens(text);
+  let best: string | null = null;
+  let bestScore = 0;
+  for (const option of options) {
+    const want = compact(option);
+    if (!want) continue;
+    if (got === want) return option;
+    let score = 0;
+    const shorter = got.length < want.length ? got : want;
+    const longer = got.length < want.length ? want : got;
+    if (longer.includes(shorter)) score = shorter.length / longer.length;
+    const wantTokens = tokens(option);
+    if (gotTokens.length && gotTokens.length === wantTokens.length) {
+      const prefixes = gotTokens.every((token, i) =>
+        wantTokens[i].startsWith(token) || token.startsWith(wantTokens[i]));
+      if (prefixes) score = Math.max(score, 0.55);
+    }
+    const initials = wantTokens.map((token) => token[0] ?? '').join('');
+    if (initials && (got === initials || gotTokens.join('') === initials)) {
+      score = Math.max(score, 0.6);
+    }
+    if (score > bestScore) {
+      best = option;
+      bestScore = score;
+    }
+  }
+  return bestScore >= 0.4 ? best! : text;
+}
+
+/** Expected glyph → OCR glyphs allowed in its place. `{ '@': ['Q', 'C'], '5': 'S' }` */
+export type OcrSwaps = Record<string, string | readonly string[]>;
+
+function allowedActuals(expectedChar: string, swaps?: OcrSwaps): Set<string> {
+  const allowed = new Set<string>([expectedChar]);
+  const extra = swaps?.[expectedChar];
+  if (extra == null) return allowed;
+  const values = typeof extra === 'string' ? [extra] : extra;
+  for (const value of values) {
+    for (const ch of value) allowed.add(ch);
+  }
+  return allowed;
+}
+
+function charsMatch(actual: string, expected: string, swaps?: OcrSwaps): boolean {
+  const got = [...actual];
+  const want = [...expected];
+  if (got.length !== want.length) return false;
+  return got.every((ch, i) => allowedActuals(want[i] ?? '', swaps).has(ch));
+}
+
+export function ocrTextMatches(
+  actual: string,
+  expected: string | RegExp,
+  options: { swaps?: OcrSwaps; exact?: boolean } = {},
+): boolean {
+  if (expected instanceof RegExp) return expected.test(actual);
+  if (options.exact) return charsMatch(actual, expected, options.swaps);
+  if (actual.includes(expected)) return true;
+  if (!options.swaps || !Object.keys(options.swaps).length) return false;
+  const got = [...actual];
+  const want = [...expected];
+  if (want.length > got.length) return false;
+  for (let i = 0; i <= got.length - want.length; i++) {
+    if (charsMatch(got.slice(i, i + want.length).join(''), expected, options.swaps)) return true;
+  }
+  return false;
+}
+
 /**
  * OCR utility for extracting text from images using Tesseract.js
  */
 export class OCRUtil {
   private worker: Worker | null = null;
-  private initialized = false;
+  private language = 'eng';
 
-  /**
-   * Initialize the OCR worker
-   */
   async initialize(language = 'eng'): Promise<void> {
-    if (this.initialized) return;
-    
+    if (this.worker && this.language === language) return;
+    await this.terminate();
+    this.language = language;
     this.worker = await createWorker(language);
-    this.initialized = true;
+  }
+
+  private ocrParams(options: { charset?: string; psm?: string } = {}): Record<string, string> {
+    return {
+      tessedit_pageseg_mode: options.psm ?? '7',
+      tessedit_char_whitelist: options.charset
+        || 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@._- /',
+      user_defined_dpi: '300',
+      preserve_interword_spaces: '1',
+    };
+  }
+
+  private async ensureWorker(): Promise<Worker> {
+    if (!this.worker) await this.initialize(this.language);
+    if (!this.worker) throw new Error('OCR worker not initialized. Call initialize() first.');
+    return this.worker;
   }
 
   /**
    * Extract text from an image buffer
    */
-  async extractText(imageBuffer: Buffer): Promise<string> {
-    if (!this.worker) {
-      throw new Error('OCR worker not initialized. Call initialize() first.');
-    }
-
-    const { data } = await this.worker.recognize(imageBuffer);
-    return data.text.trim();
+  async extractText(
+    imageBuffer: Buffer,
+    options: { charset?: string; psm?: string } = {},
+  ): Promise<string> {
+    const worker = await this.ensureWorker();
+    await worker.setParameters(this.ocrParams(options));
+    const { data } = await worker.recognize(imageBuffer);
+    return normalizeOcrText(data.text);
   }
 
   /**
    * Extract text with confidence scores and bounding boxes
    */
   async extractDetailedText(imageBuffer: Buffer) {
-    if (!this.worker) {
-      throw new Error('OCR worker not initialized. Call initialize() first.');
-    }
-
-    const { data } = await this.worker.recognize(imageBuffer);
-    
+    const worker = await this.ensureWorker();
+    await worker.setParameters(this.ocrParams());
+    const { data } = await worker.recognize(imageBuffer);
     return {
       text: data.text.trim(),
       confidence: data.confidence,
@@ -56,14 +169,10 @@ export class OCRUtil {
     };
   }
 
-  /**
-   * Terminate the worker to free up resources
-   */
   async terminate(): Promise<void> {
     if (this.worker) {
       await this.worker.terminate();
       this.worker = null;
-      this.initialized = false;
     }
   }
 }

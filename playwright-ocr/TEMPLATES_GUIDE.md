@@ -30,7 +30,7 @@ tests/fixtures/templates/
 Each field template is a **crop from the blank form** showing:
 - The field boundary
 - A small border around it (for better matching)
-- Any labels if they help identify the field
+- Any labels if they help identify the field — keep them. Matching uses the full crop; OCR reads only pixels that changed between the blank and filled screenshots, so the label does not appear in the extracted text.
 
 ### 3. Optional: Section Templates (for nested fields)
 **Purpose:** When fields are within specific sections of a complex form

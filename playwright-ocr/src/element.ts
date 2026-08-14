@@ -1,5 +1,23 @@
 import type { ElementResult, Rect, ElementType } from './types.js';
 import type { Page } from '@playwright/test';
+import { ocrTextMatches, type OcrSwaps } from './utils/ocr.js';
+
+export type HaveTextOptions = {
+  timeout?: number;
+  /** Expected glyph → OCR glyphs allowed in its place, e.g. `{ '@': ['Q', 'C'], '5': 'S' }`. */
+  swaps?: OcrSwaps;
+};
+
+function formatExpected(expected: string | RegExp): string {
+  return expected instanceof RegExp ? String(expected) : `"${expected}"`;
+}
+
+function formatSwaps(swaps: OcrSwaps): string {
+  return Object.entries(swaps).map(([from, to]) => {
+    const allowed = (typeof to === 'string' ? [to] : [...to]).join('|');
+    return `${from}→${allowed}`;
+  }).join(', ');
+}
 
 /**
  * Playwright-style element wrapper with chainable assertions
@@ -16,6 +34,20 @@ export class ScreenElement {
    */
   value(): string {
     return this.result.value;
+  }
+
+  /**
+   * OCR for one inner box on a shared-label row.
+   */
+  part(name: string): ScreenElement {
+    const found = this.result.parts?.find((part) => part.name === name);
+    if (!found) {
+      const known = (this.result.parts || []).map((part) => part.name).join(', ') || 'none';
+      throw new Error(
+        `Part "${name}" not found on element "${this.result.name}" (parts: ${known})`,
+      );
+    }
+    return new ScreenElement(found, this.page);
   }
 
   /**
@@ -83,35 +115,30 @@ export class ScreenElement {
    * Assert element has specific text/value
    * @throws if text doesn't match after timeout
    */
-  async toHaveText(expected: string | RegExp, options?: { timeout?: number }): Promise<void> {
+  async toHaveText(expected: string | RegExp, options?: HaveTextOptions): Promise<void> {
     const actual = this.result.value;
-    
-    if (typeof expected === 'string') {
-      if (!actual.includes(expected)) {
-        throw new Error(
-          `Element "${this.result.name}" does not have text "${expected}". Actual: "${actual}"`
-        );
-      }
-    } else {
-      if (!expected.test(actual)) {
-        throw new Error(
-          `Element "${this.result.name}" does not match pattern ${expected}. Actual: "${actual}"`
-        );
-      }
-    }
+    if (ocrTextMatches(actual, expected, { swaps: options?.swaps })) return;
+    const swapNote = options?.swaps && Object.keys(options.swaps).length
+      ? ` (allowed swaps: ${formatSwaps(options.swaps)})`
+      : '';
+    throw new Error(
+      `Element "${this.result.name}" does not have text ${formatExpected(expected)}${swapNote}. Actual: "${actual}"`,
+    );
   }
 
   /**
    * Assert element has exact text/value
    * @throws if text doesn't match exactly after timeout
    */
-  async toHaveValue(expected: string, options?: { timeout?: number }): Promise<void> {
+  async toHaveValue(expected: string, options?: HaveTextOptions): Promise<void> {
     const actual = this.result.value;
-    if (actual !== expected) {
-      throw new Error(
-        `Element "${this.result.name}" does not have value "${expected}". Actual: "${actual}"`
-      );
-    }
+    if (ocrTextMatches(actual, expected, { swaps: options?.swaps, exact: true })) return;
+    const swapNote = options?.swaps && Object.keys(options.swaps).length
+      ? ` (allowed swaps: ${formatSwaps(options.swaps)})`
+      : '';
+    throw new Error(
+      `Element "${this.result.name}" does not have value "${expected}"${swapNote}. Actual: "${actual}"`,
+    );
   }
 
   /**
