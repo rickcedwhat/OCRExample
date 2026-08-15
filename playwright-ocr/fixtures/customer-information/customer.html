@@ -171,18 +171,40 @@
     const saveBtn = document.getElementById('save');
     const toast = document.getElementById('saveToast');
     let toastTimer = 0;
+    let savedValues = {};
 
-    function setDirty(dirty) {
-      saveBtn.disabled = !dirty;
+    function snapshotValues() {
+      const snap = {};
+      document.querySelectorAll('input, select').forEach((el) => {
+        snap[el.id] = el.type === 'checkbox' ? el.checked : el.value;
+      });
+      return snap;
     }
 
+    function isFormDirty() {
+      for (const [id, original] of Object.entries(savedValues)) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const current = el.type === 'checkbox' ? el.checked : el.value;
+        if (current !== original) return true;
+      }
+      return false;
+    }
+
+    function checkDirty() {
+      saveBtn.disabled = !isFormDirty();
+    }
+
+    savedValues = snapshotValues();
+
     document.querySelectorAll('input, select').forEach((el) => {
-      el.addEventListener('change', () => setDirty(true));
-      el.addEventListener('input', () => setDirty(true));
+      el.addEventListener('change', checkDirty);
+      el.addEventListener('input', checkDirty);
     });
 
     saveBtn.addEventListener('click', () => {
-      setDirty(false);
+      savedValues = snapshotValues();
+      saveBtn.disabled = true;
       clearTimeout(toastTimer);
       toast.hidden = false;
       toastTimer = setTimeout(() => { toast.hidden = true; }, 4000);
