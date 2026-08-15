@@ -215,8 +215,8 @@ async function openIde() {
     for (const button of tabs.querySelectorAll('button')) {
       button.classList.toggle('active', button.dataset.file === item.file);
     }
-    navConfig.classList.toggle('current', Boolean(item.screen));
-    navTest.classList.toggle('current', item.file === 'test');
+    navConfig?.classList.toggle('current', Boolean(item.screen));
+    navTest?.classList.toggle('current', item.file === 'test');
     editor.innerHTML = `<div class="row"><span class="ln"></span><span class="line">Loading…</span></div>`;
     try {
       if (!cache.has(item.file)) cache.set(item.file, await fetchSource(item.file));

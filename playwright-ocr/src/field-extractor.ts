@@ -4,7 +4,7 @@ import { OCRUtil, charsetForField, pickFromOptions } from './utils/ocr.js';
 import * as fs from 'fs/promises';
 import { ElementType } from './types.js';
 import type { ElementConfig, ElementResult, ScreenComparison } from './types.js';
-import { relativePartRect } from './screen-config.js';
+import { attachOcrImage } from './ocr-step.js';
 export { ElementType };
 export type { ElementConfig, ElementResult, ScreenComparison };
 
@@ -25,6 +25,27 @@ function offsetRect(
   };
 }
 
+function addOrigin(rect: Rect, origin: Rect | undefined): Rect {
+  if (!origin) return rect;
+  return { ...rect, x: rect.x + origin.x, y: rect.y + origin.y };
+}
+
+/** Expand a label-needle match to the full template size, clamped to the image. */
+function templateRectAt(match: MatchResult, template: { cols: number; rows: number }, image: { cols: number; rows: number }): Rect {
+  const x = Math.max(0, Math.round(match.rect.x));
+  const y = Math.max(0, Math.round(match.rect.y));
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.min(template.cols, image.cols - x)),
+    height: Math.max(1, Math.min(template.rows, image.rows - y)),
+  };
+}
+
+const LIVE_BOX: [number, number, number, number] = [75, 200, 120, 255];
+const OCR_BOX: [number, number, number, number] = [79, 193, 255, 255];
+const BLANK_BOX: [number, number, number, number] = [110, 168, 254, 255];
+
 
 /**
  * Extracts UI element values from filled screens by comparing them to blank templates
@@ -36,6 +57,8 @@ export class FieldExtractor {
   private ocrUtil: OCRUtil;
   private blankForm: any | null = null;
   private filledForm: any | null = null;
+  private blankColor: any | null = null;
+  private filledColor: any | null = null;
   private debug: boolean;
 
   constructor(ocrUtil: OCRUtil, debug = false) {
@@ -45,7 +68,9 @@ export class FieldExtractor {
   }
 
   /**
-   * Load and prepare the blank and filled form images
+   * Load blank and live screenshots.
+   * Blank is the whole screen; widgets on it can move. Do not warp the live
+   * shot onto blank — match each template on both images independently.
    */
   async loadForms(blankFormPath: string, filledFormPath: string): Promise<void> {
     this.cleanup();
@@ -55,24 +80,15 @@ export class FieldExtractor {
     const blankImage = this.visionUtil.loadImage(blankBuffer);
     const filledImage = this.visionUtil.loadImage(filledBuffer);
 
+    this.blankColor = blankImage;
+    this.filledColor = filledImage;
     this.blankForm = this.visionUtil.toGrayscale(blankImage);
-    const filledGray = this.visionUtil.toGrayscale(filledImage);
+    this.filledForm = this.visionUtil.toGrayscale(filledImage);
 
     if (this.debug) {
-      console.log('Original blank form size:', this.blankForm.size());
-      console.log('Original filled form size:', filledGray.size());
+      console.log('Blank screenshot size:', this.blankForm.size());
+      console.log('Live screenshot size:', this.filledForm.size());
     }
-
-    // Align the filled form to match the blank template
-    this.filledForm = this.visionUtil.alignImages(filledGray, this.blankForm);
-
-    if (this.debug) {
-      console.log('Aligned filled form size:', this.filledForm.size());
-    }
-
-    blankImage.delete();
-    filledImage.delete();
-    filledGray.delete();
   }
 
   /**
@@ -93,6 +109,8 @@ export class FieldExtractor {
       results.push(result);
     }
 
+    await this.attachMatchOverviews(results);
+
     const filledElements = results.filter((r) => !r.isEmpty).length;
     const emptyElements = results.filter((r) => r.isEmpty).length;
 
@@ -106,7 +124,10 @@ export class FieldExtractor {
 
 
   /**
-   * Extract a single UI element value
+   * Extract a single UI element value.
+   * Match the template on blank (empty control) and on the live screenshot
+   * (label needle so typed text does not tank confidence), then OCR the pair
+   * of crops. Locations are live-screenshot coordinates for click/fill.
    */
   async extractElement(
     config: ElementConfig,
@@ -116,17 +137,14 @@ export class FieldExtractor {
       throw new Error('Forms not loaded. Call loadForms() first.');
     }
 
-    // If custom matcher is provided, use it
     if (config.customMatcher) {
       return await this.extractWithCustomMatcher(config);
     }
 
-    // Handle single template or variants (for now, just use first variant or templatePath)
     let templatePath = config.templatePath;
     let activeVariant: string | undefined;
     
     if (!templatePath && config.variants) {
-      // Use first variant as default (TODO: try all variants and pick best match)
       const firstVariant = Object.keys(config.variants)[0];
       if (firstVariant && config.variants[firstVariant]) {
         templatePath = config.variants[firstVariant].template;
@@ -143,58 +161,17 @@ export class FieldExtractor {
       this.visionUtil.loadImage(templateBuffer)
     );
 
-    let sourceBlank = this.blankForm;
-    let sourceFilled = this.filledForm;
+    const located = await this.locateOnBoth(template, config);
+    const blankRect = located.blankRect;
+    const filledRect = located.filledRect;
 
-    // If a section template is provided, first locate the section
-    if (config.sectionTemplatePath) {
-      const sectionBuffer = await fs.readFile(config.sectionTemplatePath);
-      const sectionTemplate = this.visionUtil.toGrayscale(
-        this.visionUtil.loadImage(sectionBuffer)
-      );
+    const readRect = offsetRect(filledRect, config.ocrRect, this.filledForm.cols, this.filledForm.rows);
+    const blankReadRect = offsetRect(blankRect, config.ocrRect, this.blankForm.cols, this.blankForm.rows);
+    const filledROI = this.visionUtil.extractROI(this.filledForm, readRect);
+    const blankROI = this.visionUtil.extractROI(this.blankForm, blankReadRect);
 
-      const sectionMatch = this.visionUtil.matchTemplate(
-        this.blankForm,
-        sectionTemplate
-      );
-
-      const sectionBlank = this.visionUtil.extractROI(this.blankForm, sectionMatch.rect);
-      const sectionFilled = this.visionUtil.extractROI(this.filledForm, sectionMatch.rect);
-      sectionTemplate.delete();
-
-      if (sectionBlank.rows >= template.rows && sectionBlank.cols >= template.cols) {
-        sourceBlank = sectionBlank;
-        sourceFilled = sectionFilled;
-      } else {
-        sectionBlank.delete();
-        sectionFilled.delete();
-        if (this.debug) {
-          console.log(
-            `Element "${config.name}" template does not fit in its section; matching on the full screen.`,
-          );
-        }
-      }
-    }
-
-    // Find the field location using template matching on the blank form
-    const match = this.visionUtil.matchTemplate(sourceBlank, template);
-
-    if (this.debug) {
-      console.log(`Element "${config.name}" match location:`, match.location);
-      console.log(`Element "${config.name}" confidence:`, match.confidence);
-      if (config.animated) {
-        console.log(`Element "${config.name}" is animated - using looser matching`);
-      }
-    }
-
-    const readRect = offsetRect(match.rect, config.ocrRect, sourceFilled.cols, sourceFilled.rows);
-    const filledROI = this.visionUtil.extractROI(sourceFilled, readRect);
-    const blankROI = this.visionUtil.extractROI(sourceBlank, readRect);
-
-    // Compare the regions to detect if the element has been filled
-    // For animated elements, use looser thresholds since pixels are constantly changing
-    const threshold = config.animated ? 60 : 80;  // Lower threshold for animated elements
-    const minDiffPixels = config.animated ? 5 : 10;  // Fewer pixels needed for animated elements
+    const threshold = config.animated ? 60 : 80;
+    const minDiffPixels = config.animated ? 5 : 10;
     
     const comparison = this.visionUtil.compareRegions(
       filledROI, 
@@ -204,6 +181,8 @@ export class FieldExtractor {
     );
 
     if (this.debug) {
+      console.log(`Element "${config.name}" blank match:`, blankRect, located.blankConfidence);
+      console.log(`Element "${config.name}" live match:`, filledRect, located.filledConfidence);
       console.log(
         `Field "${config.name}" diff pixels:`,
         comparison.diffPixelCount,
@@ -214,10 +193,19 @@ export class FieldExtractor {
     let value = '';
     let isEmpty = !comparison.different;
     let parts: ElementResult[] | undefined;
+    let traceImage: Buffer | undefined;
+    let traceName: string | undefined;
     const isCheckbox = config.type === 'checkbox' || config.isCheckbox;
 
     if (isCheckbox) {
-      value = comparison.different ? 'checked' : 'unchecked';
+      if (config.ocrRect) {
+        value = this.visionUtil.checkboxChecked(filledROI) ? 'checked' : 'unchecked';
+      } else {
+        const vsTemplate = this.visionUtil.compareRegions(filledROI, template, threshold, minDiffPixels);
+        value = vsTemplate.different ? 'checked' : 'unchecked';
+      }
+      traceImage = this.visionUtil.matToBuffer(filledROI);
+      traceName = `checkbox:${config.name} → ${value}`;
       isEmpty = false;
     } else if (config.animated) {
       value = comparison.different ? 'visible' : 'hidden';
@@ -226,16 +214,12 @@ export class FieldExtractor {
       const ocrThreshold = options.ocrThreshold ?? 50;
       parts = [];
       for (const part of config.parts) {
-        const partRect = offsetRect(
-          match.rect,
-          relativePartRect(part, match.rect),
-          sourceFilled.cols,
-          sourceFilled.rows,
-        );
+        const relative = { x: part.x, y: part.y, width: part.width, height: part.height };
+        const filledPart = offsetRect(filledRect, relative, this.filledForm.cols, this.filledForm.rows);
+        const blankPart = offsetRect(blankRect, relative, this.blankForm.cols, this.blankForm.rows);
         const read = await this.readChangedText(
-          sourceFilled,
-          sourceBlank,
-          partRect,
+          filledPart,
+          blankPart,
           part.name,
           config.type,
           part.charset || config.charset,
@@ -245,11 +229,13 @@ export class FieldExtractor {
         parts.push({
           name: part.name,
           value: read.value,
-          confidence: match.confidence,
-          location: partRect,
-          ocrLocation: partRect,
+          confidence: located.filledConfidence,
+          location: filledPart,
+          ocrLocation: filledPart,
           isEmpty: read.isEmpty,
           type: config.type,
+          traceImage: read.traceImage,
+          traceName: read.traceName,
         });
       }
       value = parts.map((part) => part.value).filter((text) => text.trim()).join(' ');
@@ -257,9 +243,8 @@ export class FieldExtractor {
     } else {
       const ocrThreshold = options.ocrThreshold ?? 50;
       const read = await this.readChangedText(
-        sourceFilled,
-        sourceBlank,
         readRect,
+        blankReadRect,
         config.name,
         config.type,
         config.charset,
@@ -268,42 +253,151 @@ export class FieldExtractor {
       );
       value = read.value;
       isEmpty = read.isEmpty;
+      traceImage = read.traceImage;
+      traceName = read.traceName;
     }
 
     filledROI.delete();
     blankROI.delete();
     template.delete();
-    if (sourceBlank !== this.blankForm) sourceBlank.delete();
-    if (sourceFilled !== this.filledForm) sourceFilled.delete();
+    located.cleanup();
 
     return {
       name: config.name,
       value,
-      confidence: match.confidence,
-      location: match.rect,
+      confidence: located.filledConfidence,
+      location: filledRect,
       ocrLocation: readRect,
+      blankLocation: blankRect,
       isEmpty,
       type: config.type,
       variant: activeVariant,
       parts,
+      traceImage,
+      traceName,
     };
   }
 
+  /**
+   * Match a field template on blank and on the live screenshot independently.
+   * Java POC aligned scanned forms then cropped at blank coords; here the blank
+   * is a full screen and windows can move, so each image gets its own match.
+   */
+  private async locateOnBoth(
+    template: any,
+    config: ElementConfig,
+  ): Promise<{
+    blankRect: Rect;
+    filledRect: Rect;
+    blankConfidence: number;
+    filledConfidence: number;
+    cleanup: () => void;
+  }> {
+    let sourceBlank = this.blankForm!;
+    let sourceFilled = this.filledForm!;
+    let blankOrigin: Rect | undefined;
+    let filledOrigin: Rect | undefined;
+    const toDelete: any[] = [];
+
+    if (config.sectionTemplatePath) {
+      const sectionTemplate = this.visionUtil.toGrayscale(
+        this.visionUtil.loadImage(await fs.readFile(config.sectionTemplatePath)),
+      );
+      const blankSection = this.visionUtil.matchTemplate(this.blankForm!, sectionTemplate);
+      const filledSection = this.visionUtil.matchTemplate(this.filledForm!, sectionTemplate);
+      const sectionBlank = this.visionUtil.extractROI(this.blankForm!, blankSection.rect);
+      const sectionFilled = this.visionUtil.extractROI(this.filledForm!, filledSection.rect);
+      sectionTemplate.delete();
+      if (sectionBlank.rows >= template.rows && sectionBlank.cols >= template.cols
+        && sectionFilled.rows >= template.rows && sectionFilled.cols >= template.cols) {
+        sourceBlank = sectionBlank;
+        sourceFilled = sectionFilled;
+        blankOrigin = blankSection.rect;
+        filledOrigin = filledSection.rect;
+      } else {
+        sectionBlank.delete();
+        sectionFilled.delete();
+      }
+    }
+
+    const needle = this.labelNeedle(template, config);
+    const blankMatch = this.visionUtil.matchTemplate(sourceBlank, template);
+    const filledMatch = this.visionUtil.matchTemplate(sourceFilled, needle);
+    if (needle !== template) toDelete.push(needle);
+
+    return {
+      blankRect: addOrigin(templateRectAt(blankMatch, template, sourceBlank), blankOrigin),
+      filledRect: addOrigin(templateRectAt(filledMatch, template, sourceFilled), filledOrigin),
+      blankConfidence: blankMatch.confidence,
+      filledConfidence: filledMatch.confidence,
+      cleanup: () => {
+        for (const mat of toDelete) mat.delete();
+        if (sourceBlank !== this.blankForm) sourceBlank.delete();
+        if (sourceFilled !== this.filledForm) sourceFilled.delete();
+      },
+    };
+  }
+
+  private labelNeedle(template: any, config: ElementConfig): any {
+    const labelWidth = config.ocrRect?.x;
+    if (labelWidth === undefined || labelWidth < 8 || labelWidth >= template.cols) {
+      return template;
+    }
+    return this.visionUtil.extractROI(template, {
+      x: 0,
+      y: 0,
+      width: labelWidth,
+      height: template.rows,
+    });
+  }
+
+  private async attachMatchOverviews(results: ElementResult[]): Promise<void> {
+    if (!this.filledColor || !this.blankColor) return;
+    try {
+      const liveBoxes = results.flatMap((result) => {
+        const boxes = [{ rect: result.location, label: result.name, color: LIVE_BOX }];
+        if (result.ocrLocation
+          && (result.ocrLocation.x !== result.location.x
+            || result.ocrLocation.width !== result.location.width)) {
+          boxes.push({ rect: result.ocrLocation, label: '', color: OCR_BOX });
+        }
+        for (const part of result.parts ?? []) {
+          boxes.push({ rect: part.location, label: part.name, color: OCR_BOX });
+        }
+        return boxes;
+      });
+      const blankBoxes = results.map((result) => ({
+        rect: result.blankLocation ?? result.location,
+        label: result.name,
+        color: BLANK_BOX,
+      }));
+      const live = this.visionUtil.annotateRects(this.filledColor, liveBoxes);
+      const blank = this.visionUtil.annotateRects(this.blankColor, blankBoxes);
+      await attachOcrImage('locate:live', this.visionUtil.matToBuffer(live));
+      await attachOcrImage('locate:blank', this.visionUtil.matToBuffer(blank));
+      live.delete();
+      blank.delete();
+    } catch {
+      // Overlay is diagnostic; never fail the extract.
+    }
+  }
+
   private async readChangedText(
-    sourceFilled: any,
-    sourceBlank: any,
-    readRect: Rect,
+    filledRect: Rect,
+    blankRect: Rect,
     name: string,
     type: ElementConfig['type'],
     charsetPreset: string | undefined,
     options: string[] | undefined,
     ocrThreshold: number,
-  ): Promise<{ value: string; isEmpty: boolean }> {
-    const filledROI = this.visionUtil.extractROI(sourceFilled, readRect);
-    const blankROI = this.visionUtil.extractROI(sourceBlank, readRect);
+  ): Promise<{ value: string; isEmpty: boolean; traceImage: Buffer; traceName: string }> {
+    const filledROI = this.visionUtil.extractROI(this.filledForm!, filledRect);
+    const blankROI = this.visionUtil.extractROI(this.blankForm!, blankRect);
     const ocrImage = this.visionUtil.isolateChangedForOcr(filledROI, blankROI, ocrThreshold);
     let value = '';
     let isEmpty = true;
+    let traceImage: Buffer;
+    let traceName: string;
     if (this.visionUtil.hasEnoughInk(ocrImage, 3)) {
       const charset = charsetForField(name, type, charsetPreset);
       const prep = this.visionUtil.ocrPrepOptions(ocrImage, { charset });
@@ -315,11 +409,16 @@ export class FieldExtractor {
       );
       prepared.delete();
       isEmpty = !value.trim();
+      traceImage = ocrBuffer;
+      traceName = `ocr:${name} → ${value || '(empty)'}`;
+    } else {
+      traceImage = this.visionUtil.matToBuffer(ocrImage);
+      traceName = `ocr:${name} (not sent)`;
     }
     ocrImage.delete();
     filledROI.delete();
     blankROI.delete();
-    return { value, isEmpty };
+    return { value, isEmpty, traceImage, traceName };
   }
 
   /**
@@ -339,16 +438,7 @@ export class FieldExtractor {
     const template = this.visionUtil.toGrayscale(templateColor);
     templateColor.delete();
 
-    let needle = template;
-    const labelWidth = config.ocrRect?.x;
-    if (labelWidth !== undefined && labelWidth >= 8 && labelWidth < template.cols) {
-      needle = this.visionUtil.extractROI(template, {
-        x: 0,
-        y: 0,
-        width: labelWidth,
-        height: template.rows,
-      });
-    }
+    const needle = this.labelNeedle(template, config);
 
     let match: MatchResult;
     try {
@@ -361,6 +451,7 @@ export class FieldExtractor {
       };
     }
 
+    const location = templateRectAt(match, template, shotGray);
     if (needle !== template) needle.delete();
     template.delete();
     shotGray.delete();
@@ -369,7 +460,7 @@ export class FieldExtractor {
       name: config.name,
       value: '',
       confidence: match.confidence,
-      location: match.rect,
+      location,
       isEmpty: true,
       type: config.type,
     };
@@ -387,50 +478,20 @@ export class FieldExtractor {
       throw new Error(`Element "${config.name}" with customMatcher requires templatePath to locate the element`);
     }
 
-    // Load template to find element location
     const templateBuffer = await fs.readFile(config.templatePath);
     const template = this.visionUtil.toGrayscale(
       this.visionUtil.loadImage(templateBuffer)
     );
 
-    let sourceBlank = this.blankForm;
-    let sourceFilled = this.filledForm;
+    const located = await this.locateOnBoth(template, config);
+    const filledROI = this.visionUtil.extractROI(this.filledForm!, located.filledRect);
+    const blankROI = this.visionUtil.extractROI(this.blankForm!, located.blankRect);
 
-    // Handle section template if provided
-    if (config.sectionTemplatePath) {
-      const sectionBuffer = await fs.readFile(config.sectionTemplatePath);
-      const sectionTemplate = this.visionUtil.toGrayscale(
-        this.visionUtil.loadImage(sectionBuffer)
-      );
-
-      const sectionMatch = this.visionUtil.matchTemplate(
-        this.blankForm!,
-        sectionTemplate
-      );
-
-      sourceBlank = this.visionUtil.extractROI(this.blankForm!, sectionMatch.rect);
-      sourceFilled = this.visionUtil.extractROI(this.filledForm!, sectionMatch.rect);
-
-      sectionTemplate.delete();
-    }
-
-    // Find element location
-    const match = this.visionUtil.matchTemplate(sourceBlank!, template);
-
-    if (this.debug) {
-      console.log(`Element "${config.name}" (custom matcher) location:`, match.location);
-      console.log(`Element "${config.name}" (custom matcher) confidence:`, match.confidence);
-    }
-
-    const filledROI = this.visionUtil.extractROI(sourceFilled!, match.rect);
-    const blankROI = this.visionUtil.extractROI(sourceBlank!, match.rect);
-
-    // Build context for custom matcher
     const context: import('./types.js').CustomMatcherContext = {
       blankROI,
       filledROI,
       templateROI: template,
-      location: match.rect,
+      location: located.filledRect,
       config,
       utils: {
         createDiffImage: (roi1: any, roi2: any, threshold = 80) => 
@@ -444,22 +505,20 @@ export class FieldExtractor {
       },
     };
 
-    // Call custom matcher
     const customResult = await config.customMatcher(context);
 
     filledROI.delete();
     blankROI.delete();
     template.delete();
-    if (sourceBlank !== this.blankForm) sourceBlank!.delete();
-    if (sourceFilled !== this.filledForm) sourceFilled!.delete();
+    located.cleanup();
 
-    // Return result with custom matcher output + metadata
     return {
       name: config.name,
       value: customResult.value,
       confidence: customResult.confidence,
-      location: match.rect,
-      ocrLocation: match.rect,
+      location: located.filledRect,
+      ocrLocation: located.filledRect,
+      blankLocation: located.blankRect,
       isEmpty: customResult.isEmpty,
       type: config.type,
       metadata: customResult.metadata,
@@ -478,5 +537,14 @@ export class FieldExtractor {
       this.filledForm.delete();
       this.filledForm = null;
     }
+    if (this.blankColor) {
+      this.blankColor.delete();
+      this.blankColor = null;
+    }
+    if (this.filledColor) {
+      this.filledColor.delete();
+      this.filledColor = null;
+    }
   }
 }
+

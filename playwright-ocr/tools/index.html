@@ -75,8 +75,48 @@
       background: #000;
       border-radius: 4px;
     }
+    .run-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    button.run {
+      appearance: none;
+      border: 1px solid #3d3d3d;
+      background: #1c1c1c;
+      color: #fff;
+      font: 13px/1.2 inherit;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button.run:hover:not(:disabled) {
+      border-color: #5a5a5a;
+      background: #222;
+    }
+    button.run:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    #run-log {
+      margin: 0 0 8px;
+      max-height: 180px;
+      overflow: auto;
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: #bdbdbd;
+      white-space: pre-wrap;
+    }
     .muted { color: #8a8a8a; font-size: 13px; }
+    .ok { color: #8bd49a; }
+    .fail { color: #f0a0a0; }
   </style>
+  <link rel="stylesheet" href="/app/hub-nav.css">
 </head>
 <body>
   <div class="wrap">
@@ -97,6 +137,10 @@
 
     <h2>Source</h2>
     <div class="grid">
+      <a class="card" href="/app/screens.html">
+        <strong>Screens</strong>
+        <span>Directory of the two fixture screens. Hover a field to see its crop.</span>
+      </a>
       <a class="card" href="/app/config.html">
         <strong>config.ts &amp; spec</strong>
         <span>Login and customer screens, plus the Stage 1 Playwright test.</span>
@@ -104,8 +148,14 @@
     </div>
 
     <h2>Last run</h2>
+    <div class="run-bar">
+      <button type="button" class="run" data-run="headless">Run headless</button>
+      <button type="button" class="run" data-run="headed">Run headed</button>
+      <span id="run-status" class="muted"></span>
+    </div>
+    <pre id="run-log" hidden></pre>
     <div class="grid" id="last-run">
-      <p class="muted">Run <code>npm run test:html</code> to capture video and a Playwright trace.</p>
+      <p class="muted">Run the spec from here, or <code>npm run test:html</code>.</p>
     </div>
 
     <h2>Tools</h2>
@@ -117,33 +167,104 @@
     </div>
   </div>
   <script>
-    (async () => {
-      const root = document.getElementById('last-run');
-      try {
-        const res = await fetch('/api/artifacts');
-        const data = await res.json();
-        if (!data.video && !data.trace) return;
-        const when = data.updatedAt
-          ? new Date(data.updatedAt).toLocaleString()
-          : '';
-        const traceHref = data.trace
-          ? `/trace-viewer/index.html?trace=${encodeURIComponent(location.origin + data.trace)}`
-          : '';
-        root.innerHTML = `
-          ${data.video ? `<div class="card">
-            <strong>Video</strong>
-            <span>${data.title}${when ? ` · ${when}` : ''}</span>
-            <video src="${data.video}" controls playsinline></video>
-          </div>` : ''}
-          ${data.trace ? `<a class="card" href="${traceHref}">
-            <strong>Trace</strong>
-            <span>Open the Playwright trace for this run.</span>
-          </a>` : ''}
-        `;
-      } catch {
-        root.innerHTML = '<p class="muted">Could not load artifacts.</p>';
+    const lastRun = document.getElementById('last-run');
+    const runStatus = document.getElementById('run-status');
+    const runLog = document.getElementById('run-log');
+    const buttons = [...document.querySelectorAll('[data-run]')];
+    let pollTimer;
+
+    function renderArtifacts(data) {
+      if (!data?.video && !data?.trace) {
+        if (!lastRun.querySelector('video') && !lastRun.querySelector('a.card')) {
+          lastRun.innerHTML = '<p class="muted">No video or trace yet. Run the spec to capture them.</p>';
+        }
+        return;
       }
-    })();
+      const bust = data.updatedAt ? `?t=${encodeURIComponent(data.updatedAt)}` : '';
+      const when = data.updatedAt ? new Date(data.updatedAt).toLocaleString() : '';
+      const traceHref = data.trace
+        ? `/trace-viewer/index.html?trace=${encodeURIComponent(location.origin + data.trace + bust)}`
+        : '';
+      lastRun.innerHTML = `
+        ${data.video ? `<div class="card">
+          <strong>Video</strong>
+          <span>${data.title || ''}${when ? ` · ${when}` : ''}</span>
+          <video src="${data.video}${bust}" controls playsinline></video>
+        </div>` : ''}
+        ${data.trace ? `<a class="card" href="${traceHref}">
+          <strong>Trace</strong>
+          <span>Open the Playwright trace for this run.</span>
+        </a>` : ''}
+      `;
+    }
+
+    function renderRun(data) {
+      const running = data.status === 'running';
+      buttons.forEach((button) => { button.disabled = running; });
+      runStatus.className = data.status === 'passed' ? 'ok' : data.status === 'failed' ? 'fail' : 'muted';
+      if (running) {
+        runStatus.textContent = `Running${data.headed ? ' headed' : ' headless'}…`;
+      } else if (data.status === 'passed') {
+        runStatus.textContent = `Passed${data.finishedAt ? ` · ${new Date(data.finishedAt).toLocaleString()}` : ''}`;
+      } else if (data.status === 'failed') {
+        runStatus.textContent = data.error || 'Failed';
+      } else {
+        runStatus.textContent = '';
+      }
+      if (data.log) {
+        runLog.hidden = false;
+        runLog.textContent = data.log;
+        runLog.scrollTop = runLog.scrollHeight;
+      }
+      renderArtifacts(data.artifacts || data);
+    }
+
+    async function fetchRun() {
+      const res = await fetch('/api/run');
+      return res.json();
+    }
+
+    function poll() {
+      clearInterval(pollTimer);
+      pollTimer = setInterval(async () => {
+        try {
+          const data = await fetchRun();
+          renderRun(data);
+          if (data.status !== 'running') clearInterval(pollTimer);
+        } catch {
+          clearInterval(pollTimer);
+          runStatus.textContent = 'Could not poll run status.';
+          runStatus.className = 'fail';
+        }
+      }, 800);
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', async () => {
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ headed: button.dataset.run === 'headed' }),
+        });
+        const data = await res.json();
+        renderRun(data);
+        if (res.ok || res.status === 202 || res.status === 409) poll();
+      });
+    });
+
+    fetchRun()
+      .then((data) => {
+        renderRun(data);
+        if (data.status === 'running') poll();
+      })
+      .catch(async () => {
+        try {
+          renderArtifacts(await (await fetch('/api/artifacts')).json());
+        } catch {
+          lastRun.innerHTML = '<p class="muted">Could not load artifacts.</p>';
+        }
+      });
   </script>
+  <script src="/app/hub-nav.js"></script>
 </body>
 </html>

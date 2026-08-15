@@ -1,8 +1,9 @@
 import type { ElementConfig, ElementResult, ScreenComparison } from './types.js';
 import type { ScreenConfig } from './screen-config.js';
-import { ScreenElement, VISIBLE_CONFIDENCE, type WaitForOptions } from './element.js';
+import { ScreenElement, VISIBLE_CONFIDENCE, type MatchOptions, type WaitForOptions } from './element.js';
 import type { Page } from '@playwright/test';
 import { ocrStep } from './ocr-step.js';
+import { hideOcrOverlay, overlayBoxesFromResult, showOcrOverlay } from './ocr-overlay.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -26,6 +27,7 @@ export type ScreenHost = {
   extractor: ScreenExtractor;
   screen: ScreenConfig;
   shotDir: string;
+  overlay?: boolean;
 };
 
 async function extractComparison(
@@ -52,6 +54,8 @@ async function extractComparison(
  * Provides chainable access to elements with assertions
  */
 export class ScreenResult {
+  private dirty = false;
+
   constructor(
     private comparison: ScreenComparison,
     private page?: Page,
@@ -66,13 +70,14 @@ export class ScreenResult {
     extractor: ScreenExtractor,
     screen: ScreenConfig,
     shotDir: string,
+    options: { overlay?: boolean } = {},
   ): ScreenResult {
     return new ScreenResult({
       elements: [],
       totalElements: 0,
       filledElements: 0,
       emptyElements: 0,
-    }, page, { extractor, screen, shotDir });
+    }, page, { extractor, screen, shotDir, overlay: options.overlay });
   }
 
   /**
@@ -105,6 +110,54 @@ export class ScreenResult {
     return found.parts?.find(part => part.name === partName);
   }
 
+  matchOptions(name: string, partName?: string): MatchOptions {
+    const config = this.host?.screen.elementConfigs.find(c => c.name === name);
+    if (!config) return {};
+    const part = partName ? config.parts?.find(row => row.name === partName) : undefined;
+    const match: MatchOptions = {};
+    const swaps = part?.swaps ?? config.swaps;
+    const overflow = part?.overflow ?? config.overflow;
+    const read = part?.read ?? config.read;
+    if (swaps) match.swaps = swaps;
+    if (overflow) match.overflow = overflow;
+    if (read) match.read = read;
+    return match;
+  }
+
+  markDirty(): void {
+    this.dirty = true;
+  }
+
+  async ensureFresh(): Promise<void> {
+    if (!this.host || !this.page) return;
+    if (!this.dirty && this.comparison.elements.length) return;
+    await this.refresh();
+  }
+
+  /**
+   * Wait until this screen is showing, then OCR-extract every field.
+   */
+  async waitFor(options: WaitForOptions = {}): Promise<void> {
+    if (!this.host) {
+      throw new Error('waitFor requires ScreenResult.bind(page, extractor, screen, shotDir)');
+    }
+    const name = this.host.screen.ready ?? this.host.screen.elementConfigs[0]?.name;
+    if (!name) {
+      throw new Error(`Screen "${this.host.screen.name}" has no elements to wait for`);
+    }
+    const visible = options.visible !== false;
+    return ocrStep(`screen('${this.host.screen.name}').waitFor({ visible: ${visible} })`, async () => {
+      await this.waitForElement(name, options);
+      const result = this.elementResult(name);
+      if (!result) return;
+      try {
+        await this.paintOverlay(result, name);
+      } finally {
+        await this.hideOverlay();
+      }
+    });
+  }
+
   /**
    * Poll the live screenshot until this element's template is visible (or hidden).
    * On success, OCR-extracts every field on the screen.
@@ -125,13 +178,15 @@ export class ScreenResult {
     const deadline = Date.now() + timeout;
     let last = 0;
 
+    await hideOcrOverlay(this.page);
     while (Date.now() < deadline) {
       try {
-        await this.page.screenshot({ path: shot, timeout: 2_000 });
+        await this.captureLive(shot);
         const located = await this.host.extractor.locateOnScreenshot(shot, config);
         last = located.confidence ?? 0;
         if ((last >= VISIBLE_CONFIDENCE) === visible) {
           await this.loadExtracted(shot);
+          this.dirty = false;
           return;
         }
       } catch {
@@ -155,9 +210,15 @@ export class ScreenResult {
     return ocrStep(`screen('${this.host.screen.name}').refresh()`, async () => {
       fs.mkdirSync(this.host!.shotDir, { recursive: true });
       const shot = path.join(this.host!.shotDir, `${this.host!.screen.name}-live.png`);
-      await this.page!.screenshot({ path: shot });
+      await this.captureLive(shot);
       await this.loadExtracted(shot);
+      this.dirty = false;
     });
+  }
+
+  private async captureLive(shot: string): Promise<void> {
+    await hideOcrOverlay(this.page!);
+    await this.page!.screenshot({ path: shot, timeout: 2_000 });
   }
 
   private async loadExtracted(shot: string): Promise<void> {
@@ -166,6 +227,24 @@ export class ScreenResult {
     }
     await this.host.extractor.loadForms(this.host.screen.blankScreenPath, shot);
     this.comparison = await extractComparison(this.host.extractor, this.host.screen.elementConfigs);
+  }
+
+  async paintOverlay(result: ElementResult, label?: string): Promise<void> {
+    if (!this.page || !this.host?.overlay) return;
+    const dpr = await this.page.evaluate(() => window.devicePixelRatio || 1).catch(() => 1);
+    const boxes = overlayBoxesFromResult(result, label).map((box) => ({
+      ...box,
+      x: box.x / dpr,
+      y: box.y / dpr,
+      width: box.width / dpr,
+      height: box.height / dpr,
+    }));
+    await showOcrOverlay(this.page, boxes);
+  }
+
+  async hideOverlay(): Promise<void> {
+    if (!this.page || !this.host?.overlay) return;
+    await hideOcrOverlay(this.page);
   }
 
   /**

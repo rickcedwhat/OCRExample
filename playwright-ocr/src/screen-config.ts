@@ -86,6 +86,9 @@ export interface ScreenConfig {
   
   /** Optional: Enable debug output */
   debug?: boolean | undefined;
+
+  /** Element to wait for in screen.waitFor(). Defaults to the first element. */
+  ready?: string | undefined;
 }
 
 /**
@@ -106,9 +109,13 @@ export function defineScreen(config: {
     options?: string[];
     ocrRect?: { x: number; y: number; width: number; height: number };
     charset?: string;
+    swaps?: ElementConfig['swaps'];
+    overflow?: ElementConfig['overflow'];
+    read?: ElementConfig['read'];
     parts?: FieldPart[];
   }>;
   debug?: boolean;
+  ready?: string;
 }): ScreenConfig {
   const blankScreenPath = path.join(
     config.baseDir, 
@@ -147,6 +154,15 @@ export function defineScreen(config: {
     if (el.charset) {
       elementConfig.charset = el.charset;
     }
+    if (el.swaps) {
+      elementConfig.swaps = el.swaps;
+    }
+    if (el.overflow) {
+      elementConfig.overflow = el.overflow;
+    }
+    if (el.read) {
+      elementConfig.read = el.read;
+    }
     if (el.parts?.length) {
       elementConfig.parts = el.parts;
     }
@@ -166,6 +182,9 @@ export function defineScreen(config: {
   
   if (config.debug !== undefined) {
     screenConfig.debug = config.debug;
+  }
+  if (config.ready) {
+    screenConfig.ready = config.ready;
   }
   
   const managerPath = path.join(config.baseDir, 'manager.json');

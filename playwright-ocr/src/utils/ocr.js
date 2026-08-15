@@ -91,9 +91,67 @@ function charsMatch(actual, expected, swaps) {
     return got.every((ch, i) => allowedActuals(want[i] ?? '', swaps).has(ch));
 }
 
+function charEq(actual, expected, swaps) {
+    return allowedActuals(expected, swaps).has(actual);
+}
+
+function minKeep(wantLen) {
+    return Math.min(wantLen, Math.max(3, Math.ceil(wantLen * 0.5)));
+}
+
+function containsSlice(want, slice, swaps) {
+    if (slice.length > want.length)
+        return false;
+    for (let i = 0; i <= want.length - slice.length; i++) {
+        if (slice.every((ch, j) => charEq(ch, want[i + j] ?? '', swaps)))
+            return true;
+    }
+    return false;
+}
+
+const DEFAULT_OVERFLOW_SLOP = 2;
+
+function overflowMatches(actual, expected, overflow, swaps, slop = DEFAULT_OVERFLOW_SLOP) {
+    const got = [...actual];
+    const want = [...expected];
+    if (!want.length)
+        return !got.length;
+    const keep = minKeep(want.length);
+    if (overflow === 'end') {
+        let matched = 0;
+        while (matched < got.length && matched < want.length && charEq(got[matched] ?? '', want[matched] ?? '', swaps)) {
+            matched++;
+        }
+        return matched >= keep && (got.length - matched) <= slop;
+    }
+    if (overflow === 'start') {
+        let matched = 0;
+        while (matched < got.length && matched < want.length
+            && charEq(got[got.length - 1 - matched] ?? '', want[want.length - 1 - matched] ?? '', swaps)) {
+            matched++;
+        }
+        return matched >= keep && (got.length - matched) <= slop;
+    }
+    for (let left = 0; left <= slop; left++) {
+        for (let right = 0; right <= slop; right++) {
+            if (left + right >= got.length)
+                continue;
+            const slice = got.slice(left, got.length - right);
+            if (slice.length < keep)
+                continue;
+            if (containsSlice(want, slice, swaps))
+                return true;
+        }
+    }
+    return false;
+}
+
 export function ocrTextMatches(actual, expected, options = {}) {
     if (expected instanceof RegExp)
         return expected.test(actual);
+    if (options.overflow) {
+        return overflowMatches(actual, expected, options.overflow, options.swaps, options.overflowSlop ?? DEFAULT_OVERFLOW_SLOP);
+    }
     if (options.exact)
         return charsMatch(actual, expected, options.swaps);
     if (actual.includes(expected))

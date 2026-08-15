@@ -12,3 +12,12 @@ export async function ocrStep<T>(title: string, body: () => Promise<T>): Promise
   }
   return test.step(title, body, { box: true });
 }
+
+/** Attach a PNG to the current Playwright test so it shows in the report and trace. */
+export async function attachOcrImage(name: string, buffer: Buffer): Promise<void> {
+  try {
+    await test.info().attach(name, { body: buffer, contentType: 'image/png' });
+  } catch {
+    // Not running inside a Playwright test.
+  }
+}

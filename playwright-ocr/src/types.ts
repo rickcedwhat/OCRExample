@@ -1,3 +1,5 @@
+import type { FieldRead, OcrOverflow, OcrSwaps } from './utils/ocr.js';
+
 /**
  * Types of UI elements that can be extracted
  */
@@ -134,6 +136,17 @@ export interface ElementConfig {
   /** Character whitelist preset: auto, text, digits, alnum, email, vin. */
   charset?: string | undefined;
 
+  /** Expected glyph → OCR glyphs allowed in its place. */
+  swaps?: OcrSwaps | undefined;
+
+  /**
+   * Value may clip in the box. `end` = prefix plus up to 2 garbage glyphs at the cut.
+   */
+  overflow?: OcrOverflow | undefined;
+
+  /** How to read the value. Default `ocr`. `clipboard` is click / select-all / copy. */
+  read?: FieldRead | undefined;
+
   /**
    * Inner boxes to OCR separately after one parent match.
    * Rects are relative to the match crop (same space as ocrRect).
@@ -145,6 +158,9 @@ export interface ElementConfig {
 export interface FieldPart extends Rect {
   name: string;
   charset?: string | undefined;
+  swaps?: OcrSwaps | undefined;
+  overflow?: OcrOverflow | undefined;
+  read?: FieldRead | undefined;
 }
 
 /**
@@ -165,6 +181,9 @@ export interface ElementResult {
 
   /** Value box in screen space (label crop stays on `location`). Used by fill(). */
   ocrLocation?: Rect | undefined;
+
+  /** Template match on blank.png. Differs from `location` when the window moved. */
+  blankLocation?: Rect | undefined;
   
   /** Whether the element is in its empty/default state */
   isEmpty: boolean;
@@ -180,6 +199,12 @@ export interface ElementResult {
 
   /** Per-box OCR when the element was authored with parts. */
   parts?: ElementResult[] | undefined;
+
+  /** Crop PNG to attach on the assertion step, not on waitFor. */
+  traceImage?: Buffer | undefined;
+
+  /** Attachment title for `traceImage`. */
+  traceName?: string | undefined;
 }
 
 /**

@@ -4,10 +4,12 @@
   <meta charset="UTF-8">
   <title>Customer Information</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="hub-nav.css">
 </head>
 <body>
   <div class="app">
-    <div class="window">
+    <button type="button" id="moveWindow" class="desktop-tool" data-pos="top-center">Window: top center</button>
+    <div class="window" data-pos="top-center">
       <div class="titlebar">Customer Information</div>
       <div class="body">
         <div class="section-title">Customer</div>
@@ -164,6 +166,25 @@
         else el.value = value;
       }
     }
+
+    const positions = [
+      { id: 'top-center', label: 'top center' },
+      { id: 'middle-left', label: 'middle left' },
+      { id: 'bottom-right', label: 'bottom right' },
+    ];
+    const windowEl = document.querySelector('.window');
+    const moveBtn = document.getElementById('moveWindow');
+    function placeWindow(id) {
+      const pos = positions.find((item) => item.id === id) || positions[0];
+      windowEl.dataset.pos = pos.id;
+      moveBtn.dataset.pos = pos.id;
+      moveBtn.textContent = `Window: ${pos.label}`;
+    }
+    moveBtn.addEventListener('click', () => {
+      const index = positions.findIndex((item) => item.id === windowEl.dataset.pos);
+      placeWindow(positions[(index + 1) % positions.length].id);
+    });
   </script>
+  <script src="hub-nav.js"></script>
 </body>
 </html>

@@ -10,7 +10,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { exec } from 'node:child_process';
+import { exec, spawn } from 'node:child_process';
+import { publishHtmlFixtureArtifacts } from './publish-test-artifacts.mjs';
 import { PNG } from 'pngjs';
 import { VisionUtil } from '../src/utils/vision.js';
 import { OCRUtil, charsetForField, pickFromOptions } from '../src/utils/ocr.js';
@@ -912,6 +913,41 @@ const SOURCE_FILES = {
   'html-customer-information': path.join(PROJECT_ROOT, 'tests', 'screens', 'html-customer-information', 'config.ts'),
 };
 
+const HTML_FIXTURE_SCREENS = [
+  { name: 'html-login', label: 'Sign In', href: '/app/login.html' },
+  { name: 'html-customer-information', label: 'Customer Information', href: '/app/customer.html' },
+];
+
+function htmlScreenCatalog() {
+  return HTML_FIXTURE_SCREENS.map((screen) => {
+    const managerPath = path.join(REPO_SCREENS_DIR, screen.name, 'manager.json');
+    const manager = fs.existsSync(managerPath)
+      ? JSON.parse(fs.readFileSync(managerPath, 'utf8'))
+      : { elements: [] };
+    const filledPath = path.join(REPO_SCREENS_DIR, screen.name, 'filled.png');
+    return {
+      ...screen,
+      blank: `/screens/${screen.name}/blank.png`,
+      filled: fs.existsSync(filledPath) ? `/screens/${screen.name}/filled.png` : null,
+      elements: (manager.elements || []).map((el) => ({
+        name: el.name,
+        type: el.type,
+        x: el.x,
+        y: el.y,
+        width: el.width,
+        height: el.height,
+        parts: (el.parts || []).map((part) => ({
+          name: part.name,
+          x: part.x,
+          y: part.y,
+          width: part.width,
+          height: part.height,
+        })),
+      })),
+    };
+  });
+}
+
 function loadSource(rawKey) {
   const filePath = SOURCE_FILES[String(rawKey ?? '')];
   if (!filePath) {
@@ -967,11 +1003,98 @@ function artifactPayload() {
     : null;
   return {
     ok: true,
-    title: 'Stage 1 spec',
+    title: 'HTML Customer Information spec',
     updatedAt: stamp,
     video: hasVideo ? '/artifacts/html-fixture/video.webm' : null,
     trace: hasTrace ? '/artifacts/html-fixture/trace.zip' : null,
   };
+}
+
+const htmlTestRun = {
+  status: 'idle',
+  headed: false,
+  log: '',
+  startedAt: null,
+  finishedAt: null,
+  error: null,
+  child: null,
+};
+
+function runPayload() {
+  return {
+    ok: true,
+    status: htmlTestRun.status,
+    headed: htmlTestRun.headed,
+    log: htmlTestRun.log.slice(-12_000),
+    startedAt: htmlTestRun.startedAt,
+    finishedAt: htmlTestRun.finishedAt,
+    error: htmlTestRun.error,
+    artifacts: artifactPayload(),
+  };
+}
+
+function appendRunLog(chunk) {
+  htmlTestRun.log += chunk.toString();
+  if (htmlTestRun.log.length > 40_000) {
+    htmlTestRun.log = htmlTestRun.log.slice(-30_000);
+  }
+}
+
+function startHtmlTest({ headed = false } = {}) {
+  if (htmlTestRun.status === 'running') {
+    return { status: 409, body: { error: 'A test is already running.', ...runPayload() } };
+  }
+
+  htmlTestRun.status = 'running';
+  htmlTestRun.headed = Boolean(headed);
+  htmlTestRun.log = '';
+  htmlTestRun.startedAt = new Date().toISOString();
+  htmlTestRun.finishedAt = null;
+  htmlTestRun.error = null;
+
+  const playwrightBin = path.join(PROJECT_ROOT, 'node_modules', '.bin', 'playwright');
+  const args = ['test', 'tests/html-login-ocr.spec.ts'];
+  if (htmlTestRun.headed) args.push('--headed');
+
+  const env = { ...process.env, OCR_OPEN: '0' };
+  delete env.PLAYWRIGHT_BROWSERS_PATH;
+
+  const child = spawn(playwrightBin, args, {
+    cwd: PROJECT_ROOT,
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  htmlTestRun.child = child;
+
+  child.stdout.on('data', appendRunLog);
+  child.stderr.on('data', appendRunLog);
+  child.on('error', (err) => {
+    htmlTestRun.child = null;
+    htmlTestRun.status = 'failed';
+    htmlTestRun.error = err.message;
+    htmlTestRun.finishedAt = new Date().toISOString();
+    appendRunLog(`\n${err.message}\n`);
+  });
+  child.on('close', (code) => {
+    htmlTestRun.child = null;
+    try {
+      const published = publishHtmlFixtureArtifacts({
+        sinceMs: Date.parse(htmlTestRun.startedAt) - 1_000,
+      });
+      if (!published.video && !published.trace) {
+        appendRunLog('\nNo new video/trace to publish.\n');
+      } else {
+        appendRunLog('\nPublished artifacts/html-fixture.\n');
+      }
+    } catch (err) {
+      appendRunLog(`\nCould not publish artifacts: ${err.message}\n`);
+    }
+    htmlTestRun.status = code === 0 ? 'passed' : 'failed';
+    htmlTestRun.finishedAt = new Date().toISOString();
+    if (code !== 0) htmlTestRun.error = `playwright exited ${code}`;
+  });
+
+  return { status: 202, body: runPayload() };
 }
 
 function serveApp(res, pathname) {
@@ -1057,9 +1180,33 @@ async function handle(req, res) {
     return;
   }
 
+  if (req.method === 'GET' && url.pathname === '/api/run') {
+    sendJson(res, 200, runPayload());
+    return;
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/run') {
+    let payload = {};
+    try {
+      const raw = (await readBody(req)).toString('utf8').trim();
+      if (raw) payload = JSON.parse(raw);
+    } catch (err) {
+      sendJson(res, 400, { error: err.message || 'Invalid JSON body.' });
+      return;
+    }
+    const result = startHtmlTest({ headed: Boolean(payload.headed) });
+    sendJson(res, result.status, result.body);
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/source') {
     const result = loadSource(url.searchParams.get('file'));
     sendJson(res, result.status, result.body);
+    return;
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/html-screens') {
+    sendJson(res, 200, { screens: htmlScreenCatalog() });
     return;
   }
 

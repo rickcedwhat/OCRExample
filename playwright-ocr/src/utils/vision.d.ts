@@ -50,6 +50,11 @@ export declare class VisionUtil {
     isolateChangedForOcr(filled: any, blank: any, threshold?: number): any;
     countDarkPixels(image: any, limit?: number): number;
     hasEnoughInk(image: any, minPixels?: number): boolean;
+    checkboxChecked(image: any, options?: {
+        inset?: number;
+        darkLimit?: number;
+        minInk?: number;
+    }): boolean;
     ocrPrepOptions(image: any, options?: {
         charset?: string;
         scale?: number;
@@ -61,6 +66,14 @@ export declare class VisionUtil {
         threshold?: number;
         charset?: string;
     }): any;
+    /**
+     * Draw labeled rectangles on a clone of the screenshot (RGBA or gray).
+     */
+    annotateRects(image: any, boxes: Array<{
+        rect: Rect;
+        label?: string;
+        color?: [number, number, number, number];
+    }>): any;
     /**
      * Align two images using feature detection and homography
      * This corrects for rotation, skew, and perspective differences

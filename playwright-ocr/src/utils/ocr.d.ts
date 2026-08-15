@@ -3,9 +3,13 @@ export declare function charsetForField(name?: string, type?: string, preset?: s
 export declare function normalizeOcrText(text: string): string;
 export declare function pickFromOptions(text: string, options?: string[]): string;
 export type OcrSwaps = Record<string, string | readonly string[]>;
+export type OcrOverflow = 'start' | 'end' | 'both';
+export type FieldRead = 'ocr' | 'clipboard';
 export declare function ocrTextMatches(actual: string, expected: string | RegExp, options?: {
     swaps?: OcrSwaps;
     exact?: boolean;
+    overflow?: OcrOverflow;
+    overflowSlop?: number;
 }): boolean;
 /**
  * OCR utility for extracting text from images using Tesseract.js

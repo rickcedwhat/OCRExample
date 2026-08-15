@@ -128,6 +128,27 @@ export class VisionUtil {
     hasEnoughInk(image, minPixels = 8) {
         return this.countDarkPixels(image) >= minPixels;
     }
+    /**
+     * Whether a checkbox crop looks checked.
+     * Ignores the box border (inset) and looks for ink in the interior, so an
+     * empty box is unchecked without a second template or a blank-screenshot match.
+     */
+    checkboxChecked(image, options = {}) {
+        const inset = options.inset ?? 2;
+        const darkLimit = options.darkLimit ?? 180;
+        const minInk = options.minInk ?? 6;
+        const padX = Math.min(inset, Math.max(0, Math.floor(image.cols / 4)));
+        const padY = Math.min(inset, Math.max(0, Math.floor(image.rows / 4)));
+        const width = image.cols - padX * 2;
+        const height = image.rows - padY * 2;
+        if (width < 2 || height < 2) {
+            return this.countDarkPixels(image, darkLimit) >= minInk;
+        }
+        const inner = this.extractROI(image, { x: padX, y: padY, width, height });
+        const dark = this.countDarkPixels(inner, darkLimit);
+        inner.delete();
+        return dark >= minInk;
+    }
     ocrPrepOptions(image, options = {}) {
         const rows = image.rows ?? 0;
         let scale = 3;
@@ -136,7 +157,7 @@ export class VisionUtil {
             scale = 3;
         }
         else if (rows <= 24) {
-            scale = 4;
+            scale = 3;
             threshold = 200;
         }
         if (options.scale && options.scale >= 2 && options.scale <= 8)
@@ -162,7 +183,7 @@ export class VisionUtil {
         if (allocatedGray)
             gray.delete();
         const padded = new cv.Mat();
-        cv.copyMakeBorder(scaled, padded, 16, 16, 16, 16, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255));
+        cv.copyMakeBorder(scaled, padded, 8, 8, 8, 8, cv.BORDER_CONSTANT, new cv.Scalar(255, 255, 255, 255));
         scaled.delete();
         const binary = new cv.Mat();
         if (typeof threshold === 'number') {
@@ -173,6 +194,38 @@ export class VisionUtil {
         }
         padded.delete();
         return binary;
+    }
+    /**
+     * Draw labeled rectangles on a clone of the screenshot (RGBA or gray).
+     */
+    annotateRects(image, boxes) {
+        const out = image.clone();
+        for (const box of boxes) {
+            if (!box.rect.width || !box.rect.height) continue;
+            const [r, g, b, a] = box.color ?? [75, 200, 120, 255];
+            const color = new cv.Scalar(r, g, b, a);
+            cv.rectangle(
+                out,
+                new cv.Point(Math.round(box.rect.x), Math.round(box.rect.y)),
+                new cv.Point(
+                    Math.round(box.rect.x + box.rect.width),
+                    Math.round(box.rect.y + box.rect.height),
+                ),
+                color,
+                2,
+            );
+            if (!box.label) continue;
+            cv.putText(
+                out,
+                box.label,
+                new cv.Point(Math.round(box.rect.x) + 2, Math.max(14, Math.round(box.rect.y) - 4)),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                color,
+                1,
+            );
+        }
+        return out;
     }
     /**
      * Align two images using feature detection and homography

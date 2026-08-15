@@ -23,13 +23,14 @@ export const htmlCustomerInformationScreen = defineScreen({
       template: 'vin.png',
       type: ElementType.FIELD,
       charset: 'vin',
+      swaps: { '5': ['S'] },
     },
     {
       name: 'name',
       template: 'name.png',
       type: ElementType.FIELD,
       parts: [
-        { name: 'firstName', x: 138, y: 4, width: 74, height: 16 },
+        { name: 'firstName', x: 138, y: 4, width: 74, height: 16, overflow: 'end' },
         { name: 'middleInitial', x: 224, y: 4, width: 22, height: 16 },
         { name: 'lastName', x: 258, y: 4, width: 74, height: 16 },
       ],
@@ -87,6 +88,7 @@ export const htmlCustomerInformationScreen = defineScreen({
       template: 'email.png',
       type: ElementType.FIELD,
       charset: 'email',
+      swaps: { '@': ['C', 'Q'] },
     },
     {
       name: 'active',

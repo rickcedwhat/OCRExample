@@ -24,13 +24,14 @@ export type {
 export { ElementType } from './field-extractor.js';
 export { ScreenResult } from './screen-result.js';
 export { ScreenElement } from './element.js';
-export type { HaveTextOptions, WaitForOptions } from './element.js';
+export type { HaveTextOptions, MatchOptions, WaitForOptions } from './element.js';
 export { ocrTextMatches } from './utils/ocr.js';
-export type { OcrSwaps } from './utils/ocr.js';
+export type { FieldRead, OcrOverflow, OcrSwaps } from './utils/ocr.js';
 export { defineScreen, screenAssetsDir } from './screen-config.js';
 export type { ScreenConfig } from './screen-config.js';
 export { defineTypedScreen, TypedScreenResult } from './typed-screen.js';
 export type { TypedScreenConfig } from './typed-screen.js';
+export { test, expect } from './ocr-test.js';
 
 /**
  * Helper class for integrating form OCR testing with Playwright

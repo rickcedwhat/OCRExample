@@ -14,10 +14,11 @@ Opens http://localhost:8000 — a hub with links to the fixture, source, and Tem
 
 - http://localhost:8000/app/login.html
 - http://localhost:8000/app/customer.html
+- http://localhost:8000/app/screens.html
 - http://localhost:8000/app/config.html
 - http://localhost:8000/template-manager.html
 
-Stage 1 Playwright spec (locator login → OCR username → `element('signIn').click()` → OCR customer number + Active checkbox):
+The hub **Last run** section can start `tests/html-login-ocr.spec.ts` headless or headed. Each run copies `video.webm` and `trace.zip` over `artifacts/html-fixture/`.
 
 ```bash
 npx playwright test tests/html-login-ocr.spec.ts
