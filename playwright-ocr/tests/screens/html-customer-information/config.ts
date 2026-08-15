@@ -142,6 +142,19 @@ export const htmlCustomerInformationScreen = defineScreen({
       name: 'doNotCall',
       template: 'do-not-call.png',
       type: ElementType.CHECKBOX,
-    }
+    },
+    {
+      name: 'save',
+      variants: {
+        disabled: { template: 'save-disabled.png' },
+        enabled:  { template: 'save-enabled.png' },
+      },
+      type: ElementType.BUTTON,
+    },
+    {
+      name: 'saveStatus',
+      template: 'save-toast.png',
+      type: ElementType.MESSAGE,
+    },
   ],
 });

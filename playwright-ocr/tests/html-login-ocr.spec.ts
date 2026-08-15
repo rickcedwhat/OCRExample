@@ -25,8 +25,10 @@ test.describe('HTML Customer Information fixture', () => {
     await customer.element('customerNumber').toHaveValue('SEA314535');
     await customer.element('vin').toHaveValue('5NPDH4AE1DH314535');
     await customer.element('active').toBeUnchecked();
+    await customer.element('save').toHaveVariant('disabled');
     await customer.element('active').click();
     await customer.element('active').toBeChecked();
+    await customer.element('save').toHaveVariant('enabled');
 
     await customer.element('name').part('firstName').toHaveValue('QAWCUSTOMR');
     await customer.element('name').part('firstName').toHaveValue('QAWCUSTOMR', { read: 'clipboard' });
@@ -59,6 +61,10 @@ test.describe('HTML Customer Information fixture', () => {
     await customer.element('delivered').part('year').toHaveValue('23');
     await customer.element('odometer').toHaveValue('20398');
     await customer.element('color').toHaveValue('WHITE');
+
+    await customer.element('save').click();
+    await customer.element('saveStatus').toBeVisible();
+    await customer.element('save').toHaveVariant('disabled');
 
     const moveWindow = page.locator('#moveWindow');
     for (const pos of ['middle-left', 'bottom-right']) {

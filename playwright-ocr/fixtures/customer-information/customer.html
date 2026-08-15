@@ -121,8 +121,9 @@
         </div>
         <div class="btns">
           <button type="button" id="close">Close</button>
-          <button type="button" id="save">Save</button>
+          <button type="button" id="save" disabled>Save</button>
         </div>
+        <div id="saveToast" class="toast" hidden>Saved successfully.</div>
       </div>
     </div>
   </div>
@@ -166,6 +167,26 @@
         else el.value = value;
       }
     }
+
+    const saveBtn = document.getElementById('save');
+    const toast = document.getElementById('saveToast');
+    let toastTimer = 0;
+
+    function setDirty(dirty) {
+      saveBtn.disabled = !dirty;
+    }
+
+    document.querySelectorAll('input, select').forEach((el) => {
+      el.addEventListener('change', () => setDirty(true));
+      el.addEventListener('input', () => setDirty(true));
+    });
+
+    saveBtn.addEventListener('click', () => {
+      setDirty(false);
+      clearTimeout(toastTimer);
+      toast.hidden = false;
+      toastTimer = setTimeout(() => { toast.hidden = true; }, 4000);
+    });
 
     const positions = [
       { id: 'top-center', label: 'top center' },

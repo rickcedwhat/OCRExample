@@ -113,10 +113,26 @@ export class FieldExtractor {
         let templatePath = config.templatePath;
         let activeVariant;
         if (!templatePath && config.variants) {
-            const firstVariant = Object.keys(config.variants)[0];
-            if (firstVariant && config.variants[firstVariant]) {
-                templatePath = config.variants[firstVariant].template;
-                activeVariant = firstVariant;
+            const variantEntries = Object.entries(config.variants);
+            if (variantEntries.length === 1) {
+                const [name, variant] = variantEntries[0];
+                templatePath = variant.template;
+                activeVariant = name;
+            } else if (variantEntries.length > 1) {
+                let bestConfidence = -1;
+                for (const [name, variant] of variantEntries) {
+                    const buf = await fs.readFile(variant.template);
+                    const tmpl = this.visionUtil.toGrayscale(this.visionUtil.loadImage(buf));
+                    const needle = this.labelNeedle(tmpl, config);
+                    const match = this.visionUtil.matchTemplate(this.filledForm, needle);
+                    if (needle !== tmpl) needle.delete();
+                    tmpl.delete();
+                    if (match.confidence > bestConfidence) {
+                        bestConfidence = match.confidence;
+                        activeVariant = name;
+                        templatePath = variant.template;
+                    }
+                }
             }
         }
         if (!templatePath) {

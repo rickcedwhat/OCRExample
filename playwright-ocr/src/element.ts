@@ -275,6 +275,7 @@ export class ScreenElement {
    */
   async toHaveVariant(expected: string, _options?: { timeout?: number }): Promise<void> {
     return ocrStep(`element('${this.label}').toHaveVariant(${JSON.stringify(expected)})`, async () => {
+      await this.live?.ensureFresh();
       this.syncResult();
       await this.attachTrace();
       const actual = this.result.variant;
